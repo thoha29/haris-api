@@ -1,0 +1,122 @@
+[
+  {
+    "Field": "id_data_absensi",
+    "Type": "int(11)",
+    "Null": "NO",
+    "Key": "PRI",
+    "Default": null,
+    "Extra": "auto_increment"
+  },
+  {
+    "Field": "id_user",
+    "Type": "int(11)",
+    "Null": "NO",
+    "Key": "MUL",
+    "Default": null,
+    "Extra": ""
+  },
+  {
+    "Field": "id_skema",
+    "Type": "int(11)",
+    "Null": "YES",
+    "Key": "",
+    "Default": null,
+    "Extra": ""
+  },
+  {
+    "Field": "tanggal",
+    "Type": "date",
+    "Null": "NO",
+    "Key": "",
+    "Default": null,
+    "Extra": ""
+  },
+  {
+    "Field": "jam_masuk",
+    "Type": "time",
+    "Null": "NO",
+    "Key": "",
+    "Default": null,
+    "Extra": ""
+  },
+  {
+    "Field": "jam_keluar",
+    "Type": "time",
+    "Null": "YES",
+    "Key": "",
+    "Default": null,
+    "Extra": ""
+  },
+  {
+    "Field": "status",
+    "Type": "varchar(20)",
+    "Null": "NO",
+    "Key": "",
+    "Default": "masuk",
+    "Extra": ""
+  },
+  {
+    "Field": "is_approved",
+    "Type": "enum('pending','approved','rejected')",
+    "Null": "YES",
+    "Key": "",
+    "Default": "pending",
+    "Extra": ""
+  },
+  {
+    "Field": "status_user",
+    "Type": "enum('pending','approved','rejected')",
+    "Null": "YES",
+    "Key": "",
+    "Default": "pending",
+    "Extra": ""
+  },
+  {
+    "Field": "status_hrd",
+    "Type": "enum('pending','approved','rejected')",
+    "Null": "YES",
+    "Key": "",
+    "Default": "pending",
+    "Extra": ""
+  },
+  {
+    "Field": "created_at",
+    "Type": "timestamp",
+    "Null": "NO",
+    "Key": "",
+    "Default": "current_timestamp()",
+    "Extra": ""
+  },
+  {
+    "Field": "updated_at",
+    "Type": "timestamp",
+    "Null": "NO",
+    "Key": "",
+    "Default": "current_timestamp()",
+    "Extra": "on update current_timestamp()"
+  },
+  {
+    "Field": "keterlambatan",
+    "Type": "int(11)",
+    "Null": "YES",
+    "Key": "",
+    "Default": "0",
+    "Extra": ""
+  },
+  {
+    "Field": "lembur",
+    "Type": "int(11)",
+    "Null": "YES",
+    "Key": "",
+    "Default": "0",
+    "Extra": ""
+  },
+  {
+    "Field": "total_jam_kerja",
+    "Type": "decimal(5,2)",
+    "Null": "YES",
+    "Key": "",
+    "Default": "0.00",
+    "Extra": ""
+  }
+]

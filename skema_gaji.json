@@ -1,0 +1,50 @@
+[
+  {
+    "Field": "id_skemagaji",
+    "Type": "int(11)",
+    "Null": "NO",
+    "Key": "PRI",
+    "Default": null,
+    "Extra": "auto_increment"
+  },
+  {
+    "Field": "nama_golongan",
+    "Type": "varchar(50)",
+    "Null": "YES",
+    "Key": "",
+    "Default": null,
+    "Extra": ""
+  },
+  {
+    "Field": "gaji_bulanan",
+    "Type": "decimal(12,2)",
+    "Null": "YES",
+    "Key": "",
+    "Default": null,
+    "Extra": ""
+  },
+  {
+    "Field": "jam_kerja_per_hari",
+    "Type": "int(11)",
+    "Null": "YES",
+    "Key": "",
+    "Default": "9",
+    "Extra": ""
+  },
+  {
+    "Field": "hari_kerja_per_bulan",
+    "Type": "int(11)",
+    "Null": "YES",
+    "Key": "",
+    "Default": "22",
+    "Extra": ""
+  },
+  {
+    "Field": "rate_per_jam",
+    "Type": "decimal(12,2)",
+    "Null": "YES",
+    "Key": "",
+    "Default": null,
+    "Extra": ""
+  }
+]

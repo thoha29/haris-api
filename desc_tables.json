@@ -1,0 +1,32 @@
+[
+  {
+    "Tables_in_payroll": "absensi"
+  },
+  {
+    "Tables_in_payroll": "cuti"
+  },
+  {
+    "Tables_in_payroll": "data_pribadi"
+  },
+  {
+    "Tables_in_payroll": "histori_gaji"
+  },
+  {
+    "Tables_in_payroll": "jadwal_karyawan"
+  },
+  {
+    "Tables_in_payroll": "riwayat_karier"
+  },
+  {
+    "Tables_in_payroll": "skema_absensi"
+  },
+  {
+    "Tables_in_payroll": "slip_gaji"
+  },
+  {
+    "Tables_in_payroll": "sppd"
+  },
+  {
+    "Tables_in_payroll": "users"
+  }
+]
