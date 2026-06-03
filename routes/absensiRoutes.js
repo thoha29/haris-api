@@ -9,8 +9,7 @@ router.get("/hrd/pending-user", absensiController.getPendingUser);
 router.put("/hrd/approve-user", absensiController.approveByUser);
 
 // Tahap 2: HRD (Melihat & Approve data yang sudah lolos dari User)
-router.get("/hrd/pending-hrd", absensiController.getPendingHRD);
-router.put("/hrd/approve-hrd", absensiController.approveByHRD);
+
 
 
 // --- HRD ENDPOINTS ---
