@@ -135,28 +135,36 @@ exports.updateCheckOut = (req, res) => {
         });
     });
 };
-
-// --- APPROVAL TAHAP 1: USER / ATASAN ---
+// --- APPROVAL FINAL OLEH USER ---
 exports.approveByUser = (req, res) => {
     const { id_data_absensi, status } = req.body;
-    if (!id_data_absensi) return res.status(400).json({ error: "ID Absensi tidak ditemukan!" });
+
+    if (!id_data_absensi) {
+        return res.status(400).json({
+            error: "ID Absensi tidak ditemukan!"
+        });
+    }
 
     Absensi.updateStatusUser(id_data_absensi, status, (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) {
+            return res.status(500).json({
+                error: err.message
+            });
+        }
+
         res.json({
-            message: status === 'rejected' ? "Absensi ditolak (Final)" : "Disetujui User, menunggu verifikasi HRD"
+            message:
+                status === 'rejected'
+                    ? "Absensi ditolak"
+                    : "Absensi disetujui"
         });
     });
 };
 
-// --- APPROVAL TAHAP 2: HRD ---
+// --- APPROVAL HRD DINONAKTIFKAN ---
 exports.approveByHRD = (req, res) => {
-    const { id_data_absensi, status } = req.body;
-    if (!id_data_absensi) return res.status(400).json({ error: "ID Absensi tidak ditemukan!" });
-
-    Absensi.updateStatusHRD(id_data_absensi, status, (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: `Keputusan final HRD: ${status}` });
+    return res.status(403).json({
+        error: "Approval absensi hanya dilakukan oleh User/Supervisor."
     });
 };
 
