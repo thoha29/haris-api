@@ -24,11 +24,10 @@ const Absensi = {
 
     // 3. Proses Check-In (Sesuai dengan skema tabel payroll)
     checkIn: (data, callback) => {
-        const finalStatusHRD = data.status_hrd || 'pending';
-        const finalStatusUser = data.status_user || 'pending';
-
-        // is_approved otomatis 'approved' jika kedua status sudah approved (Bypass HRD/User)
-        const isApprovedFinal = (finalStatusUser === 'approved' && finalStatusHRD === 'approved') ? 'approved' : 'pending';
+        const finalStatusUser = 'pending';
+        const finalStatusHRD = 'pending';
+        
+        const isApprovedFinal = 'pending';
 
         const sql = `
             INSERT INTO absensi (id_user, id_skema, tanggal, jam_masuk, keterlambatan, is_approved, status_user, status_hrd) 
@@ -61,33 +60,25 @@ const Absensi = {
     // --- LOGIKA APPROVAL BERJENJANG ---
 
     // 5. Update Status Tahap 1 (Atasan)
-    updateStatusUser: (id_data_absensi, status, callback) => {
-    
-        const sql = `
-            UPDATE absensi 
-            SET status_user = ?,
-                status_hrd = ?,
-                is_approved = ?
-            WHERE id_data_absensi = ?
-        `;
-    
-        db.query(
-            sql,
-            [status, status, status, id_data_absensi],
-            callback
-        );
-    },
+updateStatusUser: (id_data_absensi, status, callback) => {
 
+    const sql = `
+        UPDATE absensi
+        SET status_user = ?,
+            status_hrd = ?,
+            is_approved = ?
+        WHERE id_data_absensi = ?
+    `;
+
+    db.query(
+        sql,
+        [status, status, status, id_data_absensi],
+        callback
+    );
+},
     // 6. Update Status Tahap 2 (HRD - Keputusan Final)
     // updated_at akan otomatis terisi current_timestamp oleh MySQL saat query ini jalan
-    updateStatusHRD: (id_data_absensi, status, callback) => {
-        const sql = `
-            UPDATE absensi 
-            SET status_hrd = ?, is_approved = ? 
-            WHERE id_data_absensi = ?
-        `;
-        db.query(sql, [status, status, id_data_absensi], callback);
-    },
+
 
     // 7. List Approval User
     getPendingForUser: (callback) => {
@@ -103,19 +94,7 @@ const Absensi = {
     },
 
     // 8. List Approval HRD (Role HRD di-filter agar tidak muncul)
-    getPendingForHRD: (callback) => {
-        const sql = `
-            SELECT a.*, u.username AS nama, u.role, s.nama_skema 
-            FROM absensi a 
-            JOIN users u ON a.id_user = u.id_user 
-            LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema
-            WHERE a.status_user = 'approved' 
-              AND a.status_hrd = 'pending' 
-              AND u.role != 'hrd'
-            ORDER BY a.tanggal DESC
-        `;
-        db.query(sql, callback);
-    },
+
 
     // Ambil riwayat termasuk updated_at untuk melihat waktu eksekusi HRD
     getByUserId: (id_user, callback) => {
