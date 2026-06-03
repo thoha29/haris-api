@@ -62,13 +62,20 @@ const Absensi = {
 
     // 5. Update Status Tahap 1 (Atasan)
     updateStatusUser: (id_data_absensi, status, callback) => {
-        const finalApproved = (status === 'rejected') ? 'rejected' : 'pending';
+    
         const sql = `
             UPDATE absensi 
-            SET status_user = ?, is_approved = ? 
+            SET status_user = ?,
+                status_hrd = ?,
+                is_approved = ?
             WHERE id_data_absensi = ?
         `;
-        db.query(sql, [status, finalApproved, id_data_absensi], callback);
+    
+        db.query(
+            sql,
+            [status, status, status, id_data_absensi],
+            callback
+        );
     },
 
     // 6. Update Status Tahap 2 (HRD - Keputusan Final)
