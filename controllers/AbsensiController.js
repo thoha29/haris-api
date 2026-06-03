@@ -23,15 +23,14 @@ exports.postCheckIn = (req, res) => {
 
     // 1. LOGIKA BYPASS UNTUK 'USER' & 'HRD'
     if (userRole === 'user' || userRole === 'hrd') {
-        const bypassData = {
+          const bypassData = {
             id_user: data.id_user,
-            id_skema: data.id_skema || null, // Boleh null untuk bypass
+            id_skema: data.id_skema || null,
             tanggal: data.tanggal,
             jam_masuk: data.jam_masuk,
             keterlambatan: 0,
             status_user: 'approved',
-            // HRD langsung approved total (Final), USER approved level 1 saja
-            status_hrd: (userRole === 'hrd') ? 'approved' : 'pending'
+            status_hrd: 'approved'
         };
 
         Absensi.checkIn(bypassData, (err, result) => {
@@ -162,11 +161,7 @@ exports.approveByUser = (req, res) => {
 };
 
 // --- APPROVAL HRD DINONAKTIFKAN ---
-exports.approveByHRD = (req, res) => {
-    return res.status(403).json({
-        error: "Approval absensi hanya dilakukan oleh User/Supervisor."
-    });
-};
+
 
 // --- MONITORING & RIWAYAT ---
 exports.getPendingUser = (req, res) => {
@@ -176,12 +171,7 @@ exports.getPendingUser = (req, res) => {
     });
 };
 
-exports.getPendingHRD = (req, res) => {
-    Absensi.getPendingForHRD((err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(results);
-    });
-};
+
 
 exports.getAllAbsensi = (req, res) => {
     Absensi.getAll((err, results) => {
