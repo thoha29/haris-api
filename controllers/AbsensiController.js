@@ -12,87 +12,209 @@ const getDiffMinutes = (start, end) => {
 
 // --- PROSES CHECK-IN (REVISI BYPASS TOTAL) ---
 exports.postCheckIn = (req, res) => {
-    const data = req.body;
+const data = req.body;
 
-    // Validasi dasar
-    if (!data.id_user || !data.tanggal || !data.jam_masuk || !data.role) {
-        return res.status(400).json({ error: "Data check-in tidak lengkap (role diperlukan)!" });
-    }
 
-    const userRole = data.role.toLowerCase();
+console.log("GPS:", {
+    latitude: data.latitude,
+    longitude: data.longitude
+});
 
-    // 1. LOGIKA BYPASS UNTUK 'USER' & 'HRD'
-    if (userRole === 'user' || userRole === 'hrd') {
-          const bypassData = {
-            id_user: data.id_user,
-            id_skema: data.id_skema || null,
-            tanggal: data.tanggal,
-            jam_masuk: data.jam_masuk,
-            keterlambatan: 0,
-            status_user: 'approved',
-            status_hrd: 'approved'
-        };
+if (!data.id_user || !data.tanggal || !data.jam_masuk) {
+    return res.status(400).json({
+        error: "Data check-in tidak lengkap!"
+    });
+}
 
-        Absensi.checkIn(bypassData, (err, result) => {
-            if (err) return res.status(500).json({ error: err.message });
-            return res.status(201).json({
-                message: `Check-in ${userRole.toUpperCase()} berhasil (Bypass Otomatis)`
+// Cek apakah sudah absen hari ini
+Absensi.checkTodayAttendance(
+    data.id_user,
+    data.tanggal,
+    (err, results) => {
+
+        if (err) {
+            return res.status(500).json({
+                error: err.message
             });
-        });
-    }
-    // 2. LOGIKA UNTUK KARYAWAN & KEUANGAN (WAJIB SKEMA)
-    else {
-        if (!data.id_skema) return res.status(400).json({ error: "Role ini wajib menggunakan id_skema!" });
+        }
 
-        const sqlSkema = `SELECT jam_masuk, jam_keluar, toleransi_menit FROM skema_absensi WHERE id_skema = ?`;
-        db.query(sqlSkema, [data.id_skema], (err, skemaResults) => {
-            if (err) return res.status(500).json({ error: "Database error: " + err.message });
-            if (skemaResults.length === 0) return res.status(404).json({ error: "Skema tidak ditemukan!" });
+        if (results.length > 0) {
+            return res.status(400).json({
+                error: "Sudah absen hari ini!"
+            });
+        }
 
-            const skema = skemaResults[0];
-            const selisihAwal = getDiffMinutes(skema.jam_masuk, data.jam_masuk);
-            const selisihAkhir = getDiffMinutes(skema.jam_keluar, data.jam_masuk);
+        // ==========================================
+        // JIKA TIDAK PUNYA SKEMA
+        // ==========================================
+        if (!data.id_skema) {
 
-            Absensi.checkTodayAttendance(data.id_user, data.tanggal, (err, results) => {
-                if (err) return res.status(500).json({ error: err.message });
-                if (results.length > 0) return res.status(400).json({ error: "Sudah absen atau ada catatan kehadiran hari ini!" });
+            const finalData = {
+                id_user: data.id_user,
+                id_skema: null,
+                tanggal: data.tanggal,
+                jam_masuk: data.jam_masuk,
+                keterlambatan: 0,
+                status: 'Hadir',
+                status_user: 'approved',
+                status_hrd: 'approved'
+            };
 
-                // JIKA LEWAT JAM KERJA -> BLOKIR DAN JADIKAN ALPHA LANGSUNG
-                if (selisihAkhir >= 0) {
-                    const insertAlphaQuery = `
-                        INSERT INTO absensi 
-                        (id_user, id_skema, tanggal, jam_masuk, jam_keluar, status, is_approved, status_user, status_hrd, keterlambatan, lembur, total_jam_kerja) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    `;
-                    const values = [
-                        data.id_user, data.id_skema, data.tanggal, '00:00:00', '00:00:00', 'Alpha', 'approved', 'approved', 'approved', 0, 0, 0.0
-                    ];
+            return Absensi.checkIn(
+                finalData,
+                (err, result) => {
 
-                    db.query(insertAlphaQuery, values, (err) => {
-                        if (err) console.error("Error insert Alpha API:", err);
-                        return res.status(403).json({ error: "Shift sudah berakhir. Anda tidak dapat absen dan otomatis tercatat sebagai Alpha." });
+                    if (err) {
+                        return res.status(500).json({
+                            error: err.message
+                        });
+                    }
+
+                    return res.status(201).json({
+                        message: "Check-in berhasil (Tanpa Shift)"
                     });
-                    return; // Stop execution
+                }
+            );
+        }
+
+        // ==========================================
+        // JIKA PUNYA SKEMA
+        // ==========================================
+        const sqlSkema = `
+            SELECT
+                jam_masuk,
+                jam_keluar,
+                toleransi_menit
+            FROM skema_absensi
+            WHERE id_skema = ?
+        `;
+
+        db.query(
+            sqlSkema,
+            [data.id_skema],
+            (err, skemaResults) => {
+
+                if (err) {
+                    return res.status(500).json({
+                        error: "Database error: " + err.message
+                    });
                 }
 
-                let keterlambatan = selisihAwal > skema.toleransi_menit ? selisihAwal : 0;
+                if (skemaResults.length === 0) {
+                    return res.status(404).json({
+                        error: "Skema tidak ditemukan!"
+                    });
+                }
+
+                const skema = skemaResults[0];
+
+                const selisihAwal =
+                    getDiffMinutes(
+                        skema.jam_masuk,
+                        data.jam_masuk
+                    );
+
+                const selisihAkhir =
+                    getDiffMinutes(
+                        skema.jam_keluar,
+                        data.jam_masuk
+                    );
+
+                // Jika datang setelah jam kerja selesai
+                if (selisihAkhir >= 0) {
+
+                    const insertAlphaQuery = `
+                        INSERT INTO absensi (
+                            id_user,
+                            id_skema,
+                            tanggal,
+                            jam_masuk,
+                            jam_keluar,
+                            status,
+                            is_approved,
+                            status_user,
+                            status_hrd,
+                            keterlambatan,
+                            lembur,
+                            total_jam_kerja
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `;
+
+                    const values = [
+                        data.id_user,
+                        data.id_skema,
+                        data.tanggal,
+                        '00:00:00',
+                        '00:00:00',
+                        'Alpha',
+                        'approved',
+                        'approved',
+                        'approved',
+                        0,
+                        0,
+                        '0 jam 0 menit'
+                    ];
+
+                    db.query(
+                        insertAlphaQuery,
+                        values,
+                        (err) => {
+
+                            if (err) {
+                                console.error(
+                                    "Error insert Alpha:",
+                                    err
+                                );
+                            }
+
+                            return res.status(403).json({
+                                error: "Shift sudah berakhir. Otomatis tercatat Alpha."
+                            });
+                        }
+                    );
+
+                    return;
+                }
+
+                const keterlambatan =
+                    selisihAwal > skema.toleransi_menit
+                        ? selisihAwal
+                        : 0;
 
                 const finalData = {
                     ...data,
                     keterlambatan,
-                    status_user: 'pending' // Wajib nunggu approval Atasan/User
+                    status: 'Hadir',
+                    status_user: 'pending'
                 };
 
-                Absensi.checkIn(finalData, (err, result) => {
-                    if (err) return res.status(500).json({ error: err.message });
-                    res.status(201).json({
-                        message: keterlambatan > 0 ? `Check-in berhasil (Terlambat ${keterlambatan} menit). Menunggu Approval.` : "Check-in berhasil (Tepat waktu). Menunggu Approval."
-                    });
-                });
-            });
-        });
+                Absensi.checkIn(
+                    finalData,
+                    (err, result) => {
+
+                        if (err) {
+                            return res.status(500).json({
+                                error: err.message
+                            });
+                        }
+
+                        return res.status(201).json({
+                            message:
+                                keterlambatan > 0
+                                    ? `Check-in berhasil (Terlambat ${keterlambatan} menit)`
+                                    : "Check-in berhasil (Tepat Waktu)"
+                        });
+                    }
+                );
+            }
+        );
     }
+);
+
+
 };
+
 
 // --- PROSES CHECK-OUT (REVISI PERHITUNGAN LEMBUR) ---
 exports.updateCheckOut = (req, res) => {
@@ -192,6 +314,43 @@ exports.getListKaryawan = (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
     });
+};
+
+exports.getPendingHRD = (req, res) => {
+    Absensi.getPendingForHRD((err, results) => {
+        if (err) {
+            return res.status(500).json({
+                error: err.message
+            });
+        }
+
+        res.json(results);
+    });
+};
+
+exports.approveByHRD = (req, res) => {
+
+    const { id_data_absensi, status } = req.body;
+
+    Absensi.approveByHRD(
+        id_data_absensi,
+        status,
+        (err, result) => {
+
+            if (err) {
+                return res.status(500).json({
+                    error: err.message
+                });
+            }
+
+            res.json({
+                message:
+                    status === 'approved'
+                        ? 'Disetujui HRD'
+                        : 'Ditolak HRD'
+            });
+        }
+    );
 };
 
 // --- EXPORT EXCEL ---
