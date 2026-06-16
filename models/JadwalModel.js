@@ -30,7 +30,7 @@ const Jadwal = {
         const sql = `SELECT u.username, s.nama_skema, s.jam_masuk, s.jam_keluar FROM jadwal_karyawan jk JOIN users u ON jk.id_user = u.id_user JOIN skema_absensi s ON jk.id_skema = s.id_skema WHERE jk.tanggal = ? ORDER BY s.jam_masuk ASC`;
         db.query(sql, [tanggal], callback);
     },
-
+   
     // [✓] FITUR HAPUS SHIFT DARI KALENDER
     deleteJadwal: (id_user, tanggal, callback) => {
         const sql = 'DELETE FROM jadwal_karyawan WHERE id_user = ? AND DATE(tanggal) = ?';
