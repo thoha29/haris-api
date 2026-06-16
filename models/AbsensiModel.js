@@ -23,28 +23,48 @@ const Absensi = {
     },
 
     // 3. Proses Check-In (Sesuai dengan skema tabel payroll)
-    checkIn: (data, callback) => {
-        const finalStatusUser = 'pending';
-        const finalStatusHRD = 'pending';
-        
-        const isApprovedFinal = 'pending';
+checkIn: (data, callback) => {
 
-        const sql = `
-            INSERT INTO absensi (id_user, id_skema, tanggal, jam_masuk, keterlambatan, is_approved, status_user, status_hrd) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        const values = [
-            data.id_user,
-            data.id_skema,
-            data.tanggal,
-            data.jam_masuk,
-            data.keterlambatan || 0,
-            isApprovedFinal,
-            finalStatusUser,
-            finalStatusHRD
-        ];
-        db.query(sql, values, callback);
-    },
+    const finalStatusUser = 'pending';
+    const finalStatusHRD = 'pending';
+
+    const isApprovedFinal = 'pending';
+
+    const sql = `
+        INSERT INTO absensi (
+            id_user,
+            id_skema,
+            tanggal,
+            jam_masuk,
+            keterlambatan,
+            lokasi_absensi,
+            latitude,
+            longitude,
+            is_approved,
+            status_user,
+            status_hrd
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const values = [
+        data.id_user,
+        data.id_skema,
+        data.tanggal,
+        data.jam_masuk,
+        data.keterlambatan || 0,
+
+        data.lokasi_absensi || null,
+        data.latitude || null,
+        data.longitude || null,
+
+        isApprovedFinal,
+        finalStatusUser,
+        finalStatusHRD
+    ];
+
+    db.query(sql, values, callback);
+},
 
     // 4. Update Check-Out
     checkOut: (id_user, tanggal, jam_keluar, lembur, total_jam_kerja, callback) => {
@@ -62,19 +82,37 @@ const Absensi = {
     // 5. Update Status Tahap 1 (Atasan)
 updateStatusUser: (id_data_absensi, status, callback) => {
 
-    const sql = `
-        UPDATE absensi
-        SET status_user = ?,
-            status_hrd = ?,
-            is_approved = ?
-        WHERE id_data_absensi = ?
-    `;
+    let sql;
+    let values;
 
-    db.query(
-        sql,
-        [status, status, status, id_data_absensi],
-        callback
-    );
+    if(status === 'approved'){
+
+        sql = `
+            UPDATE absensi
+            SET status_user = 'approved',
+                status_hrd = 'approved',
+                is_approved = 'approved'
+            WHERE id_data_absensi = ?
+        `;
+
+        values = [id_data_absensi];
+
+    }
+    else{
+
+        sql = `
+            UPDATE absensi
+            SET status_user = 'rejected',
+                status_hrd = 'rejected',
+                is_approved = 'rejected'
+            WHERE id_data_absensi = ?
+        `;
+
+        values = [id_data_absensi];
+
+    }
+
+    db.query(sql, values, callback);
 },
     // 6. Update Status Tahap 2 (HRD - Keputusan Final)
     // updated_at akan otomatis terisi current_timestamp oleh MySQL saat query ini jalan
@@ -92,6 +130,17 @@ updateStatusUser: (id_data_absensi, status, callback) => {
         `;
         db.query(sql, callback);
     },
+getPendingForHRD: (callback) => {
+    const sql = `
+        SELECT a.*, u.username AS nama, u.role, s.nama_skema
+        FROM absensi a
+        JOIN users u ON a.id_user = u.id_user
+        LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema
+        ORDER BY a.tanggal DESC, a.jam_masuk DESC
+    `;
+
+    db.query(sql, callback);
+},
 
     // 8. List Approval HRD (Role HRD di-filter agar tidak muncul)
 
