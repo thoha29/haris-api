@@ -6,7 +6,7 @@ const db = require('../config/db');
 exports.createKaryawan = (req, res) => {
     const d = req.body;
 
-    const query = `
+const query = `
 INSERT INTO data_pribadi (
 id_user,
 nik,
@@ -29,38 +29,44 @@ tahun_lulus,
 tanggal_masuk,
 tanggal_kontrak_berakhir,
 atasan_langsung,
+lokasi_proyek,
+nama_atasan,
 lokasi_kerja
 )
 VALUES (
-?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 `;
 
 const values = [
-data.id_user,
-data.nik,
-data.nip,
-data.nama_lengkap,
-data.tempat_lahir,
-data.tanggal_lahir,
-data.jenis_kelamin,
-data.alamat,
-data.agama,
-data.status_perkawinan,
-data.kewarganegaraan,
-data.jabatan,
-data.divisi,
-data.status_karyawan,
-data.jenjang_pendidikan,
-data.institusi,
-data.jurusan,
-data.tahun_lulus,
-
-data.tanggal_masuk,
-data.tanggal_kontrak_berakhir,
-data.atasan_langsung,
-data.lokasi_kerja
+d.id_user,
+d.nik,
+d.nip,
+d.nama_lengkap,
+d.tempat_lahir,
+d.tanggal_lahir,
+d.jenis_kelamin,
+d.alamat,
+d.agama,
+d.status_perkawinan,
+d.kewarganegaraan,
+d.jabatan,
+d.divisi,
+d.status_karyawan,
+d.jenjang_pendidikan,
+d.institusi,
+d.jurusan,
+d.tahun_lulus,
+d.tanggal_masuk,
+d.tanggal_kontrak_berakhir,
+d.atasan_langsung,
+d.lokasi_proyek,
+d.nama_atasan,
+d.lokasi_kerja
 ];
+
+console.log("BODY:", req.body);
+console.log("VALUES:", values);
 
     db.query(query, values, (err) => {
         if (err) {
