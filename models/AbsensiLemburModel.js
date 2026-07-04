@@ -1,11 +1,11 @@
 const db = require('../config/db');
 
-const Absensi = {
-  // 1. Ambil Semua Data Absensi (HRD/Admin)
+const AbsensiLembur = {
+  // 1. Ambil Semua Data AbsensiLembur (HRD/Admin)
   getAll: (callback) => {
     const sql = `
             SELECT a.*, u.username, u.role, s.nama_skema 
-            FROM absensi a 
+            FROM absensi_lembur a 
             JOIN users u ON a.id_user = u.id_user 
             LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema
             ORDER BY a.tanggal DESC, a.jam_masuk DESC
@@ -16,7 +16,7 @@ const Absensi = {
   // 2. Cek apakah user sudah absen hari ini
   checkTodayAttendance: (id_user, tanggal, callback) => {
     const sql = `
-            SELECT * FROM absensi 
+            SELECT * FROM absensi_lembur 
             WHERE id_user = ? AND tanggal = ?
         `;
     db.query(sql, [id_user, tanggal], callback);
@@ -30,7 +30,7 @@ const Absensi = {
     const isApprovedFinal = 'pending';
 
     const sql = `
-        INSERT INTO absensi (
+        INSERT INTO absensi_lembur (
             id_user,
             id_skema,
             tanggal,
@@ -75,10 +75,10 @@ const Absensi = {
     callback
   ) => {
     const sql = `
-      UPDATE absensi 
+      UPDATE absensi_lembur 
       SET jam_keluar = ?, lembur = ?, total_jam_kerja = ?, tanggal_keluar = ?
       WHERE id_user = ? AND jam_keluar IS NULL
-      ORDER BY id_data_absensi DESC LIMIT 1
+      ORDER BY id_absensi_lembur DESC LIMIT 1
     `;
 
     db.query(
@@ -91,30 +91,30 @@ const Absensi = {
   // --- LOGIKA APPROVAL BERJENJANG ---
 
   // 5. Update Status Tahap 1 (Atasan)
-  updateStatusUser: (id_data_absensi, status, callback) => {
+  updateStatusUser: (id_absensi_lembur, status, callback) => {
     let sql;
     let values;
 
     if (status === 'approved') {
       sql = `
-            UPDATE absensi
+            UPDATE absensi_lembur
             SET status_user = 'approved',
                 status_hrd = 'approved',
                 is_approved = 'approved'
-            WHERE id_data_absensi = ?
+            WHERE id_absensi_lembur = ?
         `;
 
-      values = [id_data_absensi];
+      values = [id_absensi_lembur];
     } else {
       sql = `
-            UPDATE absensi
+            UPDATE absensi_lembur
             SET status_user = 'rejected',
                 status_hrd = 'rejected',
                 is_approved = 'rejected'
-            WHERE id_data_absensi = ?
+            WHERE id_absensi_lembur = ?
         `;
 
-      values = [id_data_absensi];
+      values = [id_absensi_lembur];
     }
 
     db.query(sql, values, callback);
@@ -126,7 +126,7 @@ const Absensi = {
   getPendingForUser: (callback) => {
     const sql = `
             SELECT a.*, u.username AS nama, u.role, s.nama_skema 
-            FROM absensi a 
+            FROM absensi_lembur a 
             JOIN users u ON a.id_user = u.id_user 
             LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema
             WHERE a.status_user = 'pending'
@@ -137,7 +137,7 @@ const Absensi = {
   getPendingForHRD: (callback) => {
     const sql = `
         SELECT a.*, u.username AS nama, u.role, s.nama_skema
-        FROM absensi a
+        FROM absensi_lembur a
         JOIN users u ON a.id_user = u.id_user
         LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema
         ORDER BY a.tanggal DESC, a.jam_masuk DESC
@@ -152,7 +152,7 @@ const Absensi = {
   getByUserId: (id_user, callback) => {
     const sql = `
             SELECT a.*, s.nama_skema, u.role, u.username 
-            FROM absensi a
+            FROM absensi_lembur a
             JOIN users u ON a.id_user = u.id_user 
             LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema
             WHERE a.id_user = ? 
@@ -171,10 +171,10 @@ const Absensi = {
     db.query(sql, callback);
   },
 
-  // Method baru untuk edit absensi khusus HRD
-  updateAbsensiByHRD: (id_data_absensi, data, callback) => {
+  // Method baru untuk edit absensi_lembur khusus HRD
+  updateAbsensiByHRD: (id_absensi_lembur, data, callback) => {
     const sql = `
-            UPDATE absensi 
+            UPDATE absensi_lembur 
             SET jam_masuk = ?, 
                 jam_keluar = ?, 
                 total_jam_kerja = ?, 
@@ -183,7 +183,7 @@ const Absensi = {
                 status = ?, 
                 status_hrd = ?, 
                 is_approved = ?
-            WHERE id_data_absensi = ?
+            WHERE id_absensi_lembur = ?
         `;
     const values = [
       data.jam_masuk,
@@ -194,10 +194,10 @@ const Absensi = {
       data.status,
       data.status_hrd,
       data.is_approved,
-      id_data_absensi,
+      id_absensi_lembur,
     ];
     db.query(sql, values, callback);
   },
 };
 
-module.exports = Absensi;
+module.exports = AbsensiLembur;

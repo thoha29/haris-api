@@ -13,6 +13,7 @@ const jadwalRoutes = require('./routes/jadwalRoutes');
 const CareerRoutes = require('./routes/careerRoutes');
 const dokumenPribadiRoutes = require('./routes/DokumenPribadiRoutes');
 const routes = require('./routes');
+const absensiLemburRoutes = require('./routes/absensiLemburRoutes');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -38,10 +39,11 @@ app.use('/api/jadwal', jadwalRoutes);
 app.use('/api/gaji', gajiRoutes);
 app.use('/api/career', CareerRoutes);
 app.use('/api/dokumen', dokumenPribadiRoutes);
+app.use('/absensi-lembur', absensiLemburRoutes);
 
 // --- CRONS ---
 initAutoAlphaCron();
 
-app.listen(3000, () => {
+app.listen(port, () => {
   console.log('Server running on port 3000');
 });

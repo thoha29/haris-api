@@ -1,4 +1,4 @@
-const Absensi = require('../models/AbsensiModel');
+const Absensi = require('../models/AbsensiLemburModel');
 const ExcelJS = require('exceljs');
 const db = require('../config/db');
 
@@ -179,21 +179,21 @@ exports.postCheckIn = (req, res) => {
 
 // --- PROSES CHECK-OUT (REVISI PERHITUNGAN LEMBUR) ---
 exports.updateCheckOut = (req, res) => {
-  const { id_user, tanggal, jam_keluar, tanggal_keluar } = req.body;
+  const { id_user, jam_keluar, tanggal_keluar } = req.body;
 
   const sqlCekMasuk = `
-        SELECT a.id_data_absensi, a.jam_masuk, a.id_skema, s.jam_keluar as jam_pulang_skema 
-        FROM absensi a 
+        SELECT a.id_absensi_lembur, a.jam_masuk, a.id_skema, s.jam_keluar as jam_pulang_skema 
+        FROM absensi_lembur a 
         LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema 
         WHERE a.id_user = ? AND a.jam_keluar IS NULL
-        ORDER BY a.id_data_absensi DESC LIMIT 1`;
+        ORDER BY a.id_absensi_lembur DESC LIMIT 1`;
 
   db.query(sqlCekMasuk, [id_user], (err, results) => {
     if (err) return res.status(500).json({ error: 'DB Error: ' + err.message });
     if (results.length === 0)
       return res
         .status(400)
-        .json({ error: 'Anda belum absen masuk hari ini!' });
+        .json({ error: 'Anda belum absen lembur masuk hari ini!' });
 
     const dataAbsen = results[0];
 
@@ -236,15 +236,15 @@ exports.updateCheckOut = (req, res) => {
 };
 // --- APPROVAL FINAL OLEH USER ---
 exports.approveByUser = (req, res) => {
-  const { id_data_absensi, status } = req.body;
+  const { id_absensi_lembur, status } = req.body;
 
-  if (!id_data_absensi) {
+  if (!id_absensi_lembur) {
     return res.status(400).json({
       error: 'ID Absensi tidak ditemukan!',
     });
   }
 
-  Absensi.updateStatusUser(id_data_absensi, status, (err, result) => {
+  Absensi.updateStatusUser(id_absensi_lembur, status, (err, result) => {
     if (err) {
       return res.status(500).json({
         error: err.message,
@@ -301,9 +301,9 @@ exports.getPendingHRD = (req, res) => {
 };
 
 exports.approveByHRD = (req, res) => {
-  const { id_data_absensi, status } = req.body;
+  const { id_absensi_lembur, status } = req.body;
 
-  Absensi.approveByHRD(id_data_absensi, status, (err, result) => {
+  Absensi.approveByHRD(id_absensi_lembur, status, (err, result) => {
     if (err) {
       return res.status(500).json({
         error: err.message,
@@ -376,7 +376,7 @@ exports.getRiwayatHRD = (req, res) => {
 
 // --- EDIT ABSENSI OLEH HRD ---
 exports.editAbsensiHRD = (req, res) => {
-  const { id_data_absensi } = req.params;
+  const { id_absensi_lembur } = req.params;
   const {
     jam_masuk,
     jam_keluar,
@@ -388,7 +388,7 @@ exports.editAbsensiHRD = (req, res) => {
     is_approved,
   } = req.body;
 
-  if (!id_data_absensi) {
+  if (!id_absensi_lembur) {
     return res.status(400).json({ error: 'ID Data Absensi diperlukan' });
   }
 
@@ -403,7 +403,7 @@ exports.editAbsensiHRD = (req, res) => {
     is_approved: is_approved || 'pending',
   };
 
-  Absensi.updateAbsensiByHRD(id_data_absensi, dataUpdate, (err, result) => {
+  Absensi.updateAbsensiByHRD(id_absensi_lembur, dataUpdate, (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Data absensi berhasil diperbarui oleh HRD!' });
   });
