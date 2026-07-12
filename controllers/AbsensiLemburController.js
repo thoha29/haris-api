@@ -14,225 +14,217 @@ const getDiffMinutes = (start, end) => {
 exports.postCheckIn = (req, res) => {
   const data = req.body;
 
-  console.log('GPS:', {
-    latitude: data.latitude,
-    longitude: data.longitude,
-  });
-
   if (!data.id_user || !data.tanggal || !data.jam_masuk) {
     return res.status(400).json({
       error: 'Data check-in tidak lengkap!',
     });
   }
 
-  // Cek apakah sudah absen hari ini
-  Absensi.checkTodayAttendance(data.id_user, data.tanggal, (err, results) => {
+  // Cek apakah sudah absen lembur (yang belum checkout)
+  const sqlCek = `
+    SELECT * FROM absensi_lembur 
+    WHERE id_user = ? AND jam_keluar IS NULL
+    LIMIT 1
+  `;
+
+  db.query(sqlCek, [data.id_user], (err, results) => {
     if (err) {
-      return res.status(500).json({
-        error: err.message,
-      });
+      return res.status(500).json({ error: err.message });
     }
 
     if (results.length > 0) {
       return res.status(400).json({
-        error: 'Sudah absen hari ini!',
+        error: 'Masih ada lembur yang belum di check-out!',
       });
     }
 
-    // ==========================================
-    // JIKA TIDAK PUNYA SKEMA
-    // ==========================================
-    if (!data.id_skema) {
-      const finalData = {
-        id_user: data.id_user,
-        id_skema: null,
-        tanggal: data.tanggal,
-        jam_masuk: data.jam_masuk,
-        keterlambatan: 0,
-        lokasi_absensi: data.lokasi_absensi,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        status: 'Hadir',
-        status_user: 'approved',
-        status_hrd: 'approved',
-      };
+    const insertQuery = `
+      INSERT INTO absensi_lembur (
+        id_user,
+        id_skema,
+        tanggal,
+        jam_masuk,
+        lokasi_absensi,
+        latitude,
+        longitude,
+        status_user,
+        status_hrd
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
 
-      return Absensi.checkIn(finalData, (err, result) => {
-        if (err) {
-          return res.status(500).json({
-            error: err.message,
-          });
-        }
+    const values = [
+      data.id_user,
+      data.id_skema,
+      data.tanggal,
+      data.jam_masuk,
+      data.lokasi_absensi,
+      data.latitude,
+      data.longitude,
+      'pending',
+      'approved',
+    ];
 
-        return res.status(201).json({
-          message: 'Check-in berhasil (Tanpa Shift)',
-        });
-      });
-    }
-
-    // ==========================================
-    // JIKA PUNYA SKEMA
-    // ==========================================
-    const sqlSkema = `
-            SELECT
-                jam_masuk,
-                jam_keluar,
-                toleransi_menit
-            FROM skema_absensi
-            WHERE id_skema = ?
-        `;
-
-    db.query(sqlSkema, [data.id_skema], (err, skemaResults) => {
+    db.query(insertQuery, values, (err) => {
       if (err) {
-        return res.status(500).json({
-          error: 'Database error: ' + err.message,
-        });
+        return res.status(500).json({ error: err.message });
       }
 
-      if (skemaResults.length === 0) {
-        return res.status(404).json({
-          error: 'Skema tidak ditemukan!',
-        });
-      }
-
-      const skema = skemaResults[0];
-
-      const selisihAwal = getDiffMinutes(skema.jam_masuk, data.jam_masuk);
-
-      const selisihAkhir = getDiffMinutes(skema.jam_keluar, data.jam_masuk);
-
-      // Jika datang setelah jam kerja selesai
-      if (selisihAkhir >= 0) {
-        const insertAlphaQuery = `
-                        INSERT INTO absensi (
-                            id_user,
-                            id_skema,
-                            tanggal,
-                            jam_masuk,
-                            jam_keluar,
-                            status,
-                            is_approved,
-                            status_user,
-                            status_hrd,
-                            keterlambatan,
-                            lembur,
-                            total_jam_kerja
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    `;
-
-        const values = [
-          data.id_user,
-          data.id_skema,
-          data.tanggal,
-          '00:00:00',
-          '00:00:00',
-          'Alpha',
-          'approved',
-          'approved',
-          'approved',
-          0,
-          0,
-          '0 jam 0 menit',
-        ];
-
-        db.query(insertAlphaQuery, values, (err) => {
-          if (err) {
-            console.error('Error insert Alpha:', err);
-          }
-
-          return res.status(403).json({
-            error: 'Shift sudah berakhir. Otomatis tercatat Alpha.',
-          });
-        });
-
-        return;
-      }
-
-      const keterlambatan =
-        selisihAwal > skema.toleransi_menit ? selisihAwal : 0;
-
-      const finalData = {
-        ...data,
-        keterlambatan,
-        status: 'Hadir',
-        status_user: 'pending',
-      };
-
-      Absensi.checkIn(finalData, (err, result) => {
-        if (err) {
-          return res.status(500).json({
-            error: err.message,
-          });
-        }
-
-        return res.status(201).json({
-          message:
-            keterlambatan > 0
-              ? `Check-in berhasil (Terlambat ${keterlambatan} menit)`
-              : 'Check-in berhasil (Tepat Waktu)',
-        });
+      return res.status(201).json({
+        message: 'Check-in lembur berhasil!',
       });
     });
   });
 };
 
 // --- PROSES CHECK-OUT (REVISI PERHITUNGAN LEMBUR) ---
-exports.updateCheckOut = (req, res) => {
-  const { id_user, jam_keluar, tanggal_keluar } = req.body;
+exports.updateCheckOut = async (req, res) => {
+  try {
+    const {
+      id_user,
+      tanggal_keluar,
+      jam_keluar,
+      latitude,
+      longitude,
+      lokasi_absensi,
+    } = req.body;
 
-  const sqlCekMasuk = `
-        SELECT a.id_absensi_lembur, a.jam_masuk, a.id_skema, s.jam_keluar as jam_pulang_skema 
-        FROM absensi_lembur a 
-        LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema 
-        WHERE a.id_user = ? AND a.jam_keluar IS NULL
-        ORDER BY a.id_absensi_lembur DESC LIMIT 1`;
+    const [rows] = await db.query(
+      `
+      SELECT id_absensi_lembur, tanggal, jam_masuk
+      FROM absensi_lembur
+      WHERE id_user = ?
+      AND jam_keluar IS NULL
+      ORDER BY id_absensi_lembur DESC
+      LIMIT 1
+      `,
+      [id_user]
+    );
 
-  db.query(sqlCekMasuk, [id_user], (err, results) => {
-    if (err) return res.status(500).json({ error: 'DB Error: ' + err.message });
-    if (results.length === 0)
-      return res
-        .status(400)
-        .json({ error: 'Anda belum absen lembur masuk hari ini!' });
-
-    const dataAbsen = results[0];
-
-    // Hitung lembur hanya jika ada skema (Bypass untuk USER/HRD tanpa skema)
-    let lembur = 0;
-    if (dataAbsen.jam_pulang_skema) {
-      const selisihKeluar = getDiffMinutes(
-        dataAbsen.jam_pulang_skema,
-        jam_keluar
-      );
-      // Konversi dari menit ke jam, bulatkan 1 desimal (e.g., 90 menit -> 1.5 jam)
-      lembur = selisihKeluar > 0 ? Number((selisihKeluar / 60).toFixed(1)) : 0;
+    if (rows.length === 0) {
+      return res.status(400).json({
+        error: 'Anda belum absen masuk hari ini!',
+      });
     }
 
-    const totalMenitKerja = getDiffMinutes(dataAbsen.jam_masuk, jam_keluar);
-    // INI YANG MASUK KE DB
-    const totalJamKerja = Number((totalMenitKerja / 60).toFixed(2));
+    const dataAbsen = rows[0];
 
-    // INI HANYA UNTUK TAMPILAN
-    const jam = Math.floor(totalMenitKerja / 60);
-    const menit = totalMenitKerja % 60;
-    const totalJamKerjaFormatted = `${jam} jam ${menit} menit`;
+    console.log('DATA ABSEN FULL:', dataAbsen);
 
-    Absensi.checkOut(
-      id_user,
-      jam_keluar,
-      lembur,
-      totalJamKerja,
-      tanggal_keluar,
-      (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({
-          message: `Check-out berhasil!`,
-          durasi: totalJamKerjaFormatted,
-          lembur: lembur > 0 ? `${lembur} jam` : '0',
-        });
+    // 🔥 fallback jika tanggal null
+    const tanggalMasuk = dataAbsen.tanggal || tanggal_keluar;
+
+    function parseDateTimeFlexible(tanggal, jam) {
+      try {
+        if (!tanggal) return null;
+
+        // 🔥 jika tanggal sudah datetime
+        let dateObj;
+
+        if (typeof tanggal === 'object') {
+          dateObj = new Date(tanggal);
+        } else {
+          dateObj = new Date(tanggal);
+        }
+
+        if (isNaN(dateObj)) return null;
+
+        // 🔥 jika jam kosong → ambil dari tanggal
+        let hour = 0,
+          minute = 0,
+          second = 0;
+
+        if (jam) {
+          if (jam.includes(':')) {
+            const parts = jam.split(':').map(Number);
+            hour = parts[0] || 0;
+            minute = parts[1] || 0;
+            second = parts[2] || 0;
+          } else {
+            // kemungkinan jam berupa datetime juga
+            const jamDate = new Date(jam);
+            if (!isNaN(jamDate)) {
+              hour = jamDate.getHours();
+              minute = jamDate.getMinutes();
+              second = jamDate.getSeconds();
+            }
+          }
+        } else {
+          // 🔥 fallback ambil dari tanggal
+          hour = dateObj.getHours();
+          minute = dateObj.getMinutes();
+          second = dateObj.getSeconds();
+        }
+
+        return new Date(
+          dateObj.getFullYear(),
+          dateObj.getMonth(),
+          dateObj.getDate(),
+          hour,
+          minute,
+          second
+        );
+      } catch (err) {
+        return null;
       }
+    }
+
+    const masukDateTime = parseDateTimeFlexible(
+      dataAbsen.tanggal,
+      dataAbsen.jam_masuk
     );
-  });
+
+    const keluarDateTime = parseDateTimeFlexible(tanggal_keluar, jam_keluar);
+    if (!masukDateTime || !keluarDateTime) {
+      return res.status(400).json({
+        error: 'Format tanggal atau jam tidak valid!',
+      });
+    }
+
+    const selisihMs = keluarDateTime - masukDateTime;
+
+    if (selisihMs < 0) {
+      return res.status(400).json({
+        error: 'Jam keluar tidak boleh lebih kecil dari jam masuk!',
+      });
+    }
+
+    const totalJam = selisihMs / (1000 * 60 * 60);
+    const total_jam_kerja = Number(totalJam.toFixed(2));
+
+    await db.query(
+      `
+      UPDATE absensi_lembur
+      SET 
+        jam_keluar = ?,
+        tanggal_keluar = ?,
+        total_jam_kerja = ?,
+        latitude = ?,
+        longitude = ?,
+        lokasi_absensi = ?
+      WHERE id_absensi_lembur = ?
+      `,
+      [
+        jam_keluar,
+        tanggal_keluar,
+        total_jam_kerja,
+        latitude || 0,
+        longitude || 0,
+        lokasi_absensi || '-',
+        dataAbsen.id_absensi_lembur, // ✅ FIX DISINI
+      ]
+    );
+
+    return res.json({
+      message: 'Check-out berhasil',
+      total_jam_kerja,
+    });
+  } catch (error) {
+    console.error('ERROR CHECKOUT:', error);
+    return res.status(500).json({
+      error: error.message,
+    });
+  }
 };
 // --- APPROVAL FINAL OLEH USER ---
 exports.approveByUser = (req, res) => {

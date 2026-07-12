@@ -408,3 +408,25 @@ exports.editAbsensiHRD = (req, res) => {
     res.json({ message: 'Data absensi berhasil diperbarui oleh HRD!' });
   });
 };
+
+exports.prosesSemua = (req, res) => {
+  const { tanggal, tanggal_keluar, id_user } = req.body;
+
+  if (!tanggal || !tanggal_keluar || !id_user) {
+    return res.status(400).json({
+      message: 'Parameter tidak lengkap',
+    });
+  }
+
+  Absensi.replaceAllProses(tanggal, tanggal_keluar, id_user, (err, result) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({
+        message: 'Gagal proses semua data',
+        error: err.message,
+      });
+    }
+
+    res.json(result);
+  });
+};

@@ -140,6 +140,8 @@ const Absensi = {
         FROM absensi a
         JOIN users u ON a.id_user = u.id_user
         LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema
+        WHERE a.status_user = 'pending'
+              AND u.role != 'hrd'
         ORDER BY a.tanggal DESC, a.jam_masuk DESC
     `;
 
@@ -197,6 +199,81 @@ const Absensi = {
       id_data_absensi,
     ];
     db.query(sql, values, callback);
+  },
+
+  replaceAllProses: (tanggal, tanggal_keluar, id_user, callback) => {
+    db.getConnection((err, conn) => {
+      if (err) return callback(err);
+
+      conn.beginTransaction(async (err) => {
+        if (err) {
+          conn.release();
+          return callback(err);
+        }
+
+        try {
+          // =========================
+          // 1. ABSENSI
+          // =========================
+          await conn.promise().query(
+            `DELETE FROM absensi_proses
+             WHERE id_user = ?`,
+            [id_user]
+          );
+
+          await conn.promise().query(
+            `INSERT INTO absensi_proses
+             SELECT * FROM absensi
+             WHERE tanggal >= ? AND tanggal_keluar <= ? AND id_user = ?`,
+            [tanggal, tanggal_keluar, id_user]
+          );
+
+          // =========================
+          // 2. LEMBUR
+          // =========================
+          await conn.promise().query(
+            `DELETE FROM absensi_lembur_proses
+             WHERE id_user = ?`,
+            [id_user]
+          );
+
+          await conn.promise().query(
+            `INSERT INTO absensi_lembur_proses
+             SELECT * FROM absensi_lembur
+             WHERE tanggal >= ? AND tanggal_keluar <= ? AND id_user = ?`,
+            [tanggal, tanggal_keluar, id_user]
+          );
+
+          // =========================
+          // 3. JADWAL KARYAWAN
+          // =========================
+          await conn.promise().query(
+            `DELETE FROM jadwal_karyawan_proses
+             WHERE id_user = ?`,
+            [tanggal, tanggal_keluar, id_user]
+          );
+
+          await conn.promise().query(
+            `INSERT INTO jadwal_karyawan_proses
+             SELECT * FROM jadwal_karyawan
+             WHERE tanggal >= ? AND tanggal <= ? AND id_user = ?`,
+            [tanggal, tanggal_keluar, id_user]
+          );
+
+          // =========================
+          // COMMIT
+          // =========================
+          await conn.promise().commit();
+          conn.release();
+
+          callback(null, { message: 'Semua proses berhasil' });
+        } catch (error) {
+          await conn.promise().rollback();
+          conn.release();
+          callback(error);
+        }
+      });
+    });
   },
 };
 
