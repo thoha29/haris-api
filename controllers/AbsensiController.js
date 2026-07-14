@@ -410,15 +410,15 @@ exports.editAbsensiHRD = (req, res) => {
 };
 
 exports.prosesSemua = (req, res) => {
-  const { tanggal, tanggal_keluar, id_user } = req.body;
+  const { tanggal, tanggal_keluar } = req.body;
 
-  if (!tanggal || !tanggal_keluar || !id_user) {
+  if (!tanggal || !tanggal_keluar) {
     return res.status(400).json({
       message: 'Parameter tidak lengkap',
     });
   }
 
-  Absensi.replaceAllProses(tanggal, tanggal_keluar, id_user, (err, result) => {
+  Absensi.replaceAllProses(tanggal, tanggal_keluar, (err, result) => {
     if (err) {
       console.error(err);
       return res.status(500).json({

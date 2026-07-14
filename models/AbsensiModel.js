@@ -201,7 +201,7 @@ const Absensi = {
     db.query(sql, values, callback);
   },
 
-  replaceAllProses: (tanggal, tanggal_keluar, id_user, callback) => {
+  replaceAllProses: (tanggal, tanggal_keluar, callback) => {
     db.getConnection((err, conn) => {
       if (err) return callback(err);
 
@@ -215,49 +215,37 @@ const Absensi = {
           // =========================
           // 1. ABSENSI
           // =========================
-          await conn.promise().query(
-            `DELETE FROM absensi_proses
-             WHERE id_user = ?`,
-            [id_user]
-          );
+          await conn.promise().query(`DELETE FROM absensi_proses`);
 
           await conn.promise().query(
             `INSERT INTO absensi_proses
              SELECT * FROM absensi
-             WHERE tanggal >= ? AND tanggal_keluar <= ? AND id_user = ?`,
-            [tanggal, tanggal_keluar, id_user]
+             WHERE tanggal >= ? AND tanggal_keluar <= ?`,
+            [tanggal, tanggal_keluar]
           );
 
           // =========================
           // 2. LEMBUR
           // =========================
-          await conn.promise().query(
-            `DELETE FROM absensi_lembur_proses
-             WHERE id_user = ?`,
-            [id_user]
-          );
+          await conn.promise().query(`DELETE FROM absensi_lembur_proses`);
 
           await conn.promise().query(
             `INSERT INTO absensi_lembur_proses
              SELECT * FROM absensi_lembur
-             WHERE tanggal >= ? AND tanggal_keluar <= ? AND id_user = ?`,
-            [tanggal, tanggal_keluar, id_user]
+             WHERE tanggal >= ? AND tanggal_keluar <= ?`,
+            [tanggal, tanggal_keluar]
           );
 
           // =========================
           // 3. JADWAL KARYAWAN
           // =========================
-          await conn.promise().query(
-            `DELETE FROM jadwal_karyawan_proses
-             WHERE id_user = ?`,
-            [tanggal, tanggal_keluar, id_user]
-          );
+          await conn.promise().query(`DELETE FROM jadwal_karyawan_proses`);
 
           await conn.promise().query(
             `INSERT INTO jadwal_karyawan_proses
              SELECT * FROM jadwal_karyawan
-             WHERE tanggal >= ? AND tanggal <= ? AND id_user = ?`,
-            [tanggal, tanggal_keluar, id_user]
+             WHERE tanggal >= ? AND tanggal <= ?`,
+            [tanggal, tanggal_keluar]
           );
 
           // =========================
