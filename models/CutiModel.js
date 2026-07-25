@@ -36,7 +36,7 @@ const Cuti = {
   updateStatusUser: (id_cuti, status, callback) => {
     // Jika Atasan REJECT, maka hasil FINAL (status) juga REJECTED.
     // const statusFinal = status === 'rejected' ? 'rejected' : 'pending';
-    const statusFinal = status === 'rejected' ? 'rejected' : 'approved';
+    const statusFinal = status === 'rejected' ? 'rejected' : 'pending';
     const sql = 'UPDATE cuti SET status_user = ?, status = ? WHERE id_cuti = ?';
     db.query(sql, [status, statusFinal, id_cuti], callback);
   },
