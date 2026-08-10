@@ -43,28 +43,51 @@ const Cuti = {
 
   // 4. TAHAP 2: Update Approval Final oleh HRD + Sinkronkan ke Kolom Status
   updateStatusHRD: (id_cuti, status, callback) => {
+    console.log(`Param id_cuti: ${id_cuti}, status input: '${status}'`);
+
     const infoSql = `
-            SELECT id_user, tipe, (DATEDIFF(tanggal_selesai, tanggal_mulai) + 1) AS durasi 
+            SELECT id_user, tipe, status_user, status_hrd, (DATEDIFF(tanggal_selesai, tanggal_mulai) + 1) AS durasi 
             FROM cuti WHERE id_cuti = ?`;
 
     db.query(infoSql, [id_cuti], (err, results) => {
-      if (err) return callback(err);
-      if (results.length === 0)
+      if (err) {
+        return callback(err);
+      }
+      if (results.length === 0) {
         return callback(new Error('Data tidak ditemukan'));
+      }
 
-      const { id_user, tipe, durasi } = results[0];
+      const { id_user, tipe, status_user, status_hrd: prevStatusHRD, durasi } = results[0];
+      const isApproved = status && status.toLowerCase() === 'approved';
 
       // UPDATE: status_hrd DAN status (hasil final) disamakan agar sinkron di database
       const updateSql =
         'UPDATE cuti SET status_hrd = ?, status = ? WHERE id_cuti = ?';
-      db.query(updateSql, [status, status, id_cuti], (err) => {
-        if (err) return callback(err);
+      db.query(updateSql, [status, status, id_cuti], (err, updateRes) => {
+        if (err) {
+          return callback(err);
+        }
 
-        // POTONG JATAH: Cuma jika status 'approved' DAN tipe 'Cuti' (Tahunan)
-        if (status === 'approved' && tipe === 'Cuti') {
+        // POTONG JATAH: Cuma jika status baru 'approved' DAN status sebelumnya belum 'approved' (berlaku untuk SEMUA tipe perizinan)
+        if (isApproved && prevStatusHRD !== 'approved') {
           const userUpdateSql =
             'UPDATE users SET jatah_cuti = jatah_cuti - ? WHERE id_user = ?';
-          db.query(userUpdateSql, [durasi, id_user], callback);
+          db.query(userUpdateSql, [durasi, id_user], (userErr, userRes) => {
+            if (userErr) {
+              return callback(userErr);
+            }
+            callback(null, userRes);
+          });
+        } else if (!isApproved && prevStatusHRD === 'approved') {
+          // KEMBALIKAN JATAH: Jika sebelumnya sudah 'approved' lalu diubah menjadi 'rejected'/'pending'
+          const userUpdateSql =
+            'UPDATE users SET jatah_cuti = jatah_cuti + ? WHERE id_user = ?';
+          db.query(userUpdateSql, [durasi, id_user], (userErr, userRes) => {
+            if (userErr) {
+              return callback(userErr);
+            }
+            callback(null, userRes);
+          });
         } else {
           callback(null);
         }
@@ -112,8 +135,7 @@ const Cuti = {
                 (SELECT COALESCE(SUM(DATEDIFF(tanggal_selesai, tanggal_mulai) + 1), 0) 
                  FROM cuti 
                  WHERE id_user = u.id_user 
-                   AND status_hrd = 'approved' 
-                   AND tipe = 'Cuti') AS cuti_tahunan_terpakai
+                   AND status_hrd = 'approved') AS cuti_terpakai
             FROM users u
             WHERE u.id_user = ?
         `;
