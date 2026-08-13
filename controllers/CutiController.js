@@ -25,7 +25,6 @@ exports.cekSisaCuti = (req, res) => {
     Cuti.getSisaCuti(req.params.id_user, (err, result) => {
         if (err) return res.status(500).json({ error: err.message });
 
-        // Mengirimkan objek lengkap ke frontend agar kartu informasi sinkron
         res.json({
             total_jatah: result.total_jatah,
             terpakai: result.terpakai,
@@ -125,5 +124,31 @@ exports.exportCutiExcelPerUser = (req, res) => {
 
         await workbook.xlsx.write(res);
         res.end();
+    });
+};
+
+// 9. HRD Riwayat Pengajuan Cuti: Ambil Semua Data Cuti (select * from cuti)
+exports.getAllCutiHistory = (req, res) => {
+    Cuti.getAll((err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+};
+
+// 10. HRD Riwayat Pengajuan Cuti: Update Status Global Enum ('pending', 'approved', 'rejected')
+exports.updateCutiStatusGlobal = (req, res) => {
+    const { id_cuti, status } = req.body;
+    if (!id_cuti || !status) {
+        return res.status(400).json({ error: "id_cuti dan status wajib diisi." });
+    }
+
+    const validStatus = ['pending', 'approved', 'rejected'];
+    if (!validStatus.includes(status.toLowerCase())) {
+        return res.status(400).json({ error: "Status tidak valid. Gunakan 'pending', 'approved', atau 'rejected'." });
+    }
+
+    Cuti.updateStatusHRD(id_cuti, status.toLowerCase(), (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: `Status pengajuan cuti berhasil diubah menjadi: ${status}` });
     });
 };
