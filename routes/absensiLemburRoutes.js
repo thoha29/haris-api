@@ -6,6 +6,7 @@ const absensiController = require('../controllers/AbsensiLemburController');
 
 // Tahap 1: User / Atasan (Melihat & Approve data pending awal)
 router.get('/hrd/pending-user', absensiController.getPendingUser);
+router.get('/hrd/riwayat-user', absensiController.getRiwayatUser);
 router.put('/hrd/approve-user', absensiController.approveByUser);
 
 // Tahap 2: HRD (Melihat & Approve data yang sudah lolos dari User)

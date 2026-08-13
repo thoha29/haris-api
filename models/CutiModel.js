@@ -98,10 +98,21 @@ const Cuti = {
   // 5. Monitoring Atasan
   getAllForUser: (callback) => {
     const sql = `
-            SELECT cuti.*, users.username AS nama_karyawan 
+            SELECT cuti.*, users.username AS nama_karyawan, dp.tipe_kerja 
             FROM cuti 
             JOIN users ON cuti.id_user = users.id_user 
+            LEFT JOIN data_pribadi dp ON cuti.id_user = dp.id_user
             WHERE cuti.status_user = 'pending'
+            ORDER BY cuti.created_at DESC`;
+    db.query(sql, callback);
+  },
+  getRiwayatForUser: (callback) => {
+    const sql = `
+            SELECT cuti.*, users.username AS nama_karyawan, dp.tipe_kerja 
+            FROM cuti 
+            JOIN users ON cuti.id_user = users.id_user 
+            LEFT JOIN data_pribadi dp ON cuti.id_user = dp.id_user
+            WHERE cuti.status_user != 'pending'
             ORDER BY cuti.created_at DESC`;
     db.query(sql, callback);
   },

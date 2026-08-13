@@ -2,7 +2,13 @@ const db = require("../config/db");
 
 const Jadwal = {
     getKaryawanJadwal: (callback) => {
-        const sql = `SELECT id_user, username, role FROM users WHERE role IN ('karyawan', 'keuangan') ORDER BY role ASC, username ASC`;
+        const sql = `
+            SELECT u.id_user, u.username, u.role, dp.tipe_kerja, dp.lokasi_kerja 
+            FROM users u 
+            LEFT JOIN data_pribadi dp ON u.id_user = dp.id_user 
+            WHERE u.role IN ('karyawan', 'keuangan') 
+            ORDER BY u.role ASC, u.username ASC
+        `;
         db.query(sql, callback);
     },
 

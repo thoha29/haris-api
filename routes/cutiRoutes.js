@@ -9,6 +9,7 @@ router.get('/sisa/:id_user', CutiController.cekSisaCuti);
 
 // --- TAHAP 1: ATASAN (USER) ---
 router.get("/pending-user", CutiController.getPendingUser);
+router.get("/riwayat-user", CutiController.getRiwayatUser);
 router.put("/approve-user", CutiController.approveCutiByUser);
 
 // --- TAHAP 2: HRD ---

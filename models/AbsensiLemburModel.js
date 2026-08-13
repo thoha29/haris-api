@@ -125,11 +125,24 @@ const AbsensiLembur = {
   // 7. List Approval User
   getPendingForUser: (callback) => {
     const sql = `
-            SELECT a.*, u.username AS nama, u.role, s.nama_skema 
+            SELECT a.*, u.username AS nama, u.role, s.nama_skema, dp.tipe_kerja, dp.lokasi_kerja 
             FROM absensi_lembur a 
             JOIN users u ON a.id_user = u.id_user 
+            LEFT JOIN data_pribadi dp ON a.id_user = dp.id_user
             LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema
             WHERE a.status_user = 'pending'
+            ORDER BY a.tanggal DESC, a.jam_masuk DESC
+        `;
+    db.query(sql, callback);
+  },
+  getRiwayatForUser: (callback) => {
+    const sql = `
+            SELECT a.*, u.username AS nama, u.role, s.nama_skema, dp.tipe_kerja, dp.lokasi_kerja 
+            FROM absensi_lembur a 
+            JOIN users u ON a.id_user = u.id_user 
+            LEFT JOIN data_pribadi dp ON a.id_user = dp.id_user
+            LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema
+            WHERE a.status_user != 'pending'
             ORDER BY a.tanggal DESC, a.jam_masuk DESC
         `;
     db.query(sql, callback);

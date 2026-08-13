@@ -41,6 +41,13 @@ exports.getPendingUser = (req, res) => {
     });
 };
 
+exports.getRiwayatUser = (req, res) => {
+    Cuti.getRiwayatForUser((err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+};
+
 exports.approveCutiByUser = (req, res) => {
     const { id_cuti, status } = req.body;
     Cuti.updateStatusUser(id_cuti, status, (err) => {

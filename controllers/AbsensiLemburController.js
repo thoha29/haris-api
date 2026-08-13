@@ -259,6 +259,13 @@ exports.getPendingUser = (req, res) => {
   });
 };
 
+exports.getRiwayatUser = (req, res) => {
+  Absensi.getRiwayatForUser((err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+};
+
 exports.getAllAbsensi = (req, res) => {
   Absensi.getAll((err, results) => {
     if (err) return res.status(500).json({ error: err.message });
