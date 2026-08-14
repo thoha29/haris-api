@@ -1,7 +1,21 @@
 const Absensi = require('../models/AbsensiModel');
 const ExcelJS = require('exceljs');
 const db = require('../config/db');
-const { calculateLemburKonversi } = require('../utils/overtimeCalculator');
+
+// Helper untuk menghitung lembur konversi (1 jam pertama = 1.5x, jam berikutnya = 2.0x)
+const calculateLemburKonversi = (actualHours, isHoliday = false) => {
+  const hours = parseFloat(actualHours) || 0;
+  if (hours <= 0) return 0;
+
+  if (isHoliday) {
+    if (hours <= 8) return Number((hours * 2.0).toFixed(2));
+    if (hours <= 9) return Number((8 * 2.0 + (hours - 8) * 3.0).toFixed(2));
+    return Number((8 * 2.0 + 1 * 3.0 + (hours - 9) * 4.0).toFixed(2));
+  } else {
+    if (hours <= 1) return Number((hours * 1.5).toFixed(2));
+    return Number((1 * 1.5 + (hours - 1) * 2.0).toFixed(2));
+  }
+};
 
 // Helper untuk menghitung selisih menit antara dua string waktu (HH:mm:ss)
 const getDiffMinutes = (start, end) => {
