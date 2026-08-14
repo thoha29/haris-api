@@ -24,7 +24,7 @@ db.query(
 
 /**
  * Helper to auto-generate non-shift schedule (id_skema: 6)
- * for dates between startDateStr and endDateStr
+ * for dates between startDateStr and endDateStr (excluding Saturday and Sunday)
  */
 const autoGenerateNonShiftSchedule = (id_user, startDateStr, endDateStr, callback) => {
   if (!id_user || !startDateStr || !endDateStr) {
@@ -32,33 +32,53 @@ const autoGenerateNonShiftSchedule = (id_user, startDateStr, endDateStr, callbac
     return;
   }
 
-  const start = new Date(startDateStr);
-  const end = new Date(endDateStr);
+  // 1. Hapus jadwal lama karyawan yang dipilih terlebih dahulu
+  db.query('DELETE FROM jadwal_karyawan WHERE id_user = ?', [id_user], (delErr) => {
+    if (delErr) {
+      console.error("Error deleting old schedule before auto-generating non-shift:", delErr);
+      if (callback) return callback(delErr);
+    }
 
-  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
-    if (callback) callback(null);
-    return;
-  }
+    const startParts = String(startDateStr).split('T')[0].split('-');
+    const endParts = String(endDateStr).split('T')[0].split('-');
 
-  const values = [];
-  let curr = new Date(start);
-  while (curr <= end) {
-    const year = curr.getFullYear();
-    const month = String(curr.getMonth() + 1).padStart(2, '0');
-    const day = String(curr.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
-    values.push([id_user, 6, dateStr]);
-    curr.setDate(curr.getDate() + 1);
-  }
+    if (startParts.length !== 3 || endParts.length !== 3) {
+      if (callback) callback(null);
+      return;
+    }
 
-  if (values.length > 0) {
-    Jadwal.assignJadwalBulk(values, (err, result) => {
-      if (err) console.error("Error auto-plotting non-shift schedule:", err);
-      if (callback) callback(err, result);
-    });
-  } else {
-    if (callback) callback(null);
-  }
+    const start = new Date(Number(startParts[0]), Number(startParts[1]) - 1, Number(startParts[2]));
+    const end = new Date(Number(endParts[0]), Number(endParts[1]) - 1, Number(endParts[2]));
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
+      if (callback) callback(null);
+      return;
+    }
+
+    const values = [];
+    let curr = new Date(start);
+    while (curr <= end) {
+      const dayOfWeek = curr.getDay(); // 0 = Minggu, 6 = Sabtu
+      // Kecualikan hari Sabtu (6) dan Minggu (0)
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        const year = curr.getFullYear();
+        const month = String(curr.getMonth() + 1).padStart(2, '0');
+        const day = String(curr.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+        values.push([id_user, 6, dateStr]);
+      }
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    if (values.length > 0) {
+      Jadwal.assignJadwalBulk(values, (err, result) => {
+        if (err) console.error("Error auto-plotting non-shift schedule:", err);
+        if (callback) callback(err, result);
+      });
+    } else {
+      if (callback) callback(null);
+    }
+  });
 };
 
 // =======================
@@ -129,9 +149,6 @@ VALUES (
       tipeKerja
     ];
 
-    console.log("BODY:", req.body);
-    console.log("VALUES:", values);
-
     db.query(query, values, (err) => {
         if (err) {
             return res
@@ -139,15 +156,19 @@ VALUES (
                 .json({ message: 'DB Error: ' + err.message });
         }
 
-        // Jika tipe_kerja non-shift, buatkan jadwal otomatis ke skema 6
+        // Jika tipe_kerja non-shift, buatkan jadwal otomatis ke skema 6 (kecuali sabtu & minggu)
         if (tipeKerja === 'non-shift' && d.id_user && d.tanggal_kontrak_berakhir) {
             const startDate = d.tanggal_masuk || new Date().toISOString().split('T')[0];
             autoGenerateNonShiftSchedule(d.id_user, startDate, d.tanggal_kontrak_berakhir, () => {
                 return res.status(201).json({
-                    message: 'Data berhasil disimpan dan jadwal non-shift (id_skema: 6) telah dibuat secara otomatis!'
+                    message: 'Data berhasil disimpan dan jadwal non-shift (Senin-Jumat, Skema 6) telah dibuat secara otomatis!'
                 });
             });
         } else {
+            // Jika tipe_kerja shift, pastikan jadwal lama bersih
+            if (d.id_user) {
+                db.query('DELETE FROM jadwal_karyawan WHERE id_user = ?', [d.id_user], () => {});
+            }
             res.status(201).json({
                 message: 'Data berhasil disimpan!'
             });
@@ -186,6 +207,8 @@ tahun_lulus=?,
 tanggal_masuk=?,
 tanggal_kontrak_berakhir=?,
 atasan_langsung=?,
+nama_atasan=?,
+lokasi_proyek=?,
 lokasi_kerja=?,
 tipe_kerja=?
 WHERE id_user=?
@@ -212,6 +235,8 @@ WHERE id_user=?
       d.tanggal_masuk,
       d.tanggal_kontrak_berakhir,
       d.atasan_langsung,
+      d.nama_atasan,
+      d.lokasi_proyek,
       d.lokasi_kerja,
       tipeKerja,
       id
@@ -224,12 +249,20 @@ WHERE id_user=?
                 .json({ message: 'Gagal Update: ' + err.message });
         }
 
-        // Jika tipe_kerja non-shift, sync jadwal otomatis
+        // Jika tipe_kerja non-shift, sync jadwal otomatis (hapus jadwal lama + buat Senin-Jumat skema 6)
         if (tipeKerja === 'non-shift' && id && d.tanggal_kontrak_berakhir) {
             const startDate = d.tanggal_masuk || new Date().toISOString().split('T')[0];
             autoGenerateNonShiftSchedule(id, startDate, d.tanggal_kontrak_berakhir, () => {
                 return res.json({
-                    message: 'Data berhasil diupdate dan jadwal non-shift (id_skema: 6) disinkronkan!'
+                    message: 'Data berhasil diupdate dan jadwal non-shift (Senin-Jumat, Skema 6) telah disinkronkan!'
+                });
+            });
+        } else if (tipeKerja === 'shift' && id) {
+            // Jika berubah ke shift, hapus jadwal non-shift sebelumnya agar bersih untuk dijadwalkan shift
+            db.query('DELETE FROM jadwal_karyawan WHERE id_user = ?', [id], (delErr) => {
+                if (delErr) console.error("Error clearing old schedule for shift:", delErr);
+                return res.json({
+                    message: 'Data berhasil diupdate dan jadwal lama telah dibersihkan untuk penjadwalan shift!'
                 });
             });
         } else {
@@ -250,16 +283,16 @@ exports.getKaryawanById = (req, res) => {
         SELECT 
             dp.*,
             COALESCE(dp.tipe_kerja, 'non-shift') AS tipe_kerja,
-            u.username, u.role, u.jatah_cuti, u.id_skemagaji
-        FROM data_pribadi dp
-        LEFT JOIN users u ON dp.id_user = u.id_user
-        WHERE dp.id_user = ? OR dp.id_data_pribadi = ?
+            u.id_user, u.username, u.role, u.jatah_cuti, u.id_skemagaji
+        FROM users u
+        LEFT JOIN data_pribadi dp ON u.id_user = dp.id_user
+        WHERE u.id_user = ?
         LIMIT 1
     `;
 
     db.query(
         query,
-        [id, id],
+        [id],
         (err, results) => {
             if (err)
                 return res.status(500).json({
@@ -268,7 +301,7 @@ exports.getKaryawanById = (req, res) => {
 
             if (results.length === 0)
                 return res.status(404).json({
-                    message: 'Data tidak ditemukan'
+                    message: 'Data user tidak ditemukan'
                 });
 
             res.json(results[0]);

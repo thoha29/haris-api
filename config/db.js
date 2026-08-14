@@ -5,6 +5,7 @@ const pool = mysql.createPool({
   user: 'managoid_api1_root',
   password: 'Payroll@4pi1',
   database: 'managoid_payroll2',
+  dateStrings: true,
 
   waitForConnections: true,
   connectionLimit: 10,
