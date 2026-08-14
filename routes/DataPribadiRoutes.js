@@ -34,7 +34,7 @@ router.post('/', verifyToken, authorizeRole('hrd'), controller.createKaryawan);
 router.get('/', verifyToken, authorizeRole('hrd', 'pimpinan'), controller.getAllKaryawan);
 
 // Read One - Detail User untuk Auto-fill
-router.get('/:id', verifyToken, authorizeRole('hrd', 'karyawan'), controller.getKaryawanById);
+router.get('/:id', verifyToken, authorizeRole('hrd', 'karyawan', 'pimpinan', 'keuangan'), controller.getKaryawanById);
 
 // Update - Edit Data Karyawan
 router.put('/:id', verifyToken, authorizeRole('hrd'), controller.updateKaryawan);

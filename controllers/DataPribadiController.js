@@ -246,9 +246,20 @@ WHERE id_user=?
 exports.getKaryawanById = (req, res) => {
     const { id } = req.params;
 
+    const query = `
+        SELECT 
+            dp.*,
+            COALESCE(dp.tipe_kerja, 'non-shift') AS tipe_kerja,
+            u.username, u.role, u.jatah_cuti, u.id_skemagaji
+        FROM data_pribadi dp
+        LEFT JOIN users u ON dp.id_user = u.id_user
+        WHERE dp.id_user = ? OR dp.id_data_pribadi = ?
+        LIMIT 1
+    `;
+
     db.query(
-        'SELECT * FROM data_pribadi WHERE id_user = ?',
-        [id],
+        query,
+        [id, id],
         (err, results) => {
             if (err)
                 return res.status(500).json({

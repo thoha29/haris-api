@@ -177,70 +177,143 @@ exports.exportExcelAll = (req, res) => {
 exports.exportExcelDetail = (req, res) => {
     const { id } = req.params;
 
-    const query = 'SELECT * FROM v_listKaryawan WHERE id_user = ? OR id_data_pribadi = ? LIMIT 1';
+    const queryView = 'SELECT * FROM v_listKaryawan WHERE id_user = ? OR id_data_pribadi = ? LIMIT 1';
+    const queryFallback = `
+        SELECT 
+            dp.id_data_pribadi, dp.id_user, dp.nik, dp.nip, dp.nama_lengkap, 
+            dp.tempat_lahir, dp.tanggal_lahir, dp.jenis_kelamin, dp.alamat, dp.agama, 
+            dp.status_perkawinan, dp.kewarganegaraan, dp.jabatan, dp.divisi, 
+            dp.status_karyawan, dp.jenjang_pendidikan, dp.institusi, dp.jurusan, 
+            dp.tahun_lulus, dp.no_hp, dp.email, dp.foto, dp.tanggal_masuk, 
+            dp.tanggal_kontrak_berakhir, dp.atasan_langsung, dp.lokasi_proyek, 
+            dp.nama_atasan, dp.lokasi_kerja, COALESCE(dp.tipe_kerja, 'non-shift') AS tipe_kerja, 
+            u.username, u.role, u.jatah_cuti, u.id_skemagaji
+        FROM data_pribadi dp
+        LEFT JOIN users u ON dp.id_user = u.id_user
+        WHERE dp.id_user = ? OR dp.id_data_pribadi = ?
+        LIMIT 1
+    `;
 
-    db.query(query, [id, id], async (err, results) => {
-        if (err) return res.status(500).json({ message: 'DB Error: ' + err.message });
-        if (results.length === 0) return res.status(404).json({ message: 'Data karyawan tidak ditemukan' });
+    const generateExcel = async (results) => {
+        if (!results || results.length === 0) {
+            return res.status(404).json({ message: 'Data karyawan tidak ditemukan' });
+        }
 
         const k = results[0];
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Detail Karyawan');
+        const worksheet = workbook.addWorksheet('Data Pribadi');
 
-        worksheet.columns = [
-            { header: 'Field Informasi', key: 'field', width: 30 },
-            { header: 'Nilai / Data', key: 'value', width: 45 }
-        ];
-
-        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
-        worksheet.getRow(1).fill = {
+        // Header Title Banner
+        worksheet.mergeCells('A1:B1');
+        const titleCell = worksheet.getCell('A1');
+        titleCell.value = 'BIODATA / DATA PRIBADI KARYAWAN';
+        titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFF' } };
+        titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        titleCell.fill = {
             type: 'pattern',
             pattern: 'solid',
             fgColor: { argb: '1F4E78' }
         };
+        worksheet.getRow(1).height = 30;
+
+        worksheet.mergeCells('A2:B2');
+        const subtitleCell = worksheet.getCell('A2');
+        subtitleCell.value = `PT. BANGGAI SENTRAL SULAWESI - Dicetak: ${new Date().toLocaleDateString('id-ID')}`;
+        subtitleCell.font = { italic: true, size: 10, color: { argb: '555555' } };
+        subtitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        worksheet.getRow(2).height = 20;
+
+        // Table Header
+        worksheet.getRow(4).values = ['Field Informasi', 'Keterangan / Nilai'];
+        worksheet.getRow(4).font = { bold: true, color: { argb: 'FFFFFF' } };
+        worksheet.getRow(4).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: '2F5597' }
+        };
+        worksheet.getRow(4).height = 24;
+
+        worksheet.getColumn(1).width = 30;
+        worksheet.getColumn(2).width = 50;
 
         const detailRows = [
-            { field: 'ID Data Pribadi', value: k.id_data_pribadi },
-            { field: 'ID User', value: k.id_user },
-            { field: 'Username', value: k.username || '-' },
-            { field: 'NIK', value: k.nik || '-' },
-            { field: 'NIP', value: k.nip || '-' },
-            { field: 'Nama Lengkap', value: k.nama_lengkap || '-' },
-            { field: 'Tipe Kerja', value: k.tipe_kerja ? k.tipe_kerja.toUpperCase() : 'NON-SHIFT' },
-            { field: 'Jabatan', value: k.jabatan || '-' },
-            { field: 'Divisi', value: k.divisi || '-' },
-            { field: 'Status Karyawan', value: k.status_karyawan || '-' },
-            { field: 'Tanggal Masuk', value: formatDateExcel(k.tanggal_masuk) },
-            { field: 'Tanggal Kontrak Berakhir', value: formatDateExcel(k.tanggal_kontrak_berakhir) },
-            { field: 'Tempat Lahir', value: k.tempat_lahir || '-' },
-            { field: 'Tanggal Lahir', value: formatDateExcel(k.tanggal_lahir) },
-            { field: 'Jenis Kelamin', value: k.jenis_kelamin === 'L' ? 'Laki-laki' : k.jenis_kelamin === 'P' ? 'Perempuan' : k.jenis_kelamin || '-' },
-            { field: 'Agama', value: k.agama || '-' },
-            { field: 'Status Perkawinan', value: k.status_perkawinan || '-' },
-            { field: 'Kewarganegaraan', value: k.kewarganegaraan || '-' },
-            { field: 'Alamat', value: k.alamat || '-' },
-            { field: 'Jenjang Pendidikan', value: k.jenjang_pendidikan || '-' },
-            { field: 'Institusi', value: k.institusi || '-' },
-            { field: 'Jurusan', value: k.jurusan || '-' },
-            { field: 'Tahun Lulus', value: k.tahun_lulus || '-' },
-            { field: 'No HP', value: k.no_hp || '-' },
-            { field: 'Email', value: k.email || '-' },
-            { field: 'Atasan Langsung', value: k.atasan_langsung || '-' },
-            { field: 'Nama Atasan', value: k.nama_atasan || '-' },
-            { field: 'Lokasi Proyek', value: k.lokasi_proyek || '-' },
-            { field: 'Lokasi Kerja', value: k.lokasi_kerja || '-' },
-            { field: 'Role System', value: k.role || '-' },
-            { field: 'Jatah Cuti', value: k.jatah_cuti !== undefined ? k.jatah_cuti : '-' },
-            { field: 'ID Skema Gaji', value: k.id_skemagaji || '-' }
+            // Identitas Pribadi
+            ['NIK', k.nik || '-'],
+            ['Nama Lengkap', k.nama_lengkap || '-'],
+            ['Tempat Lahir', k.tempat_lahir || '-'],
+            ['Tanggal Lahir', formatDateExcel(k.tanggal_lahir)],
+            ['Jenis Kelamin', k.jenis_kelamin === 'L' ? 'Laki-laki' : k.jenis_kelamin === 'P' ? 'Perempuan' : k.jenis_kelamin || '-'],
+            ['Agama', k.agama || '-'],
+            ['Status Perkawinan', k.status_perkawinan || '-'],
+            ['Kewarganegaraan', k.kewarganegaraan || '-'],
+            ['Alamat Lengkap', k.alamat || '-'],
+            
+            // Kepegawaian
+            ['NIP', k.nip || '-'],
+            ['Jabatan', k.jabatan || '-'],
+            ['Divisi', k.divisi || '-'],
+            ['Status Karyawan', k.status_karyawan ? k.status_karyawan.toUpperCase() : '-'],
+            ['Tipe Kerja', k.tipe_kerja ? k.tipe_kerja.toUpperCase() : 'NON-SHIFT'],
+            ['Tanggal Masuk', formatDateExcel(k.tanggal_masuk)],
+            ['Tanggal Kontrak Berakhir', formatDateExcel(k.tanggal_kontrak_berakhir)],
+            ['Lokasi Kerja', k.lokasi_kerja || '-'],
+            ['Lokasi Proyek', k.lokasi_proyek || '-'],
+            ['Atasan Langsung', k.atasan_langsung || '-'],
+            ['Nama Atasan', k.nama_atasan || '-'],
+
+            // Pendidikan & Kontak
+            ['Jenjang Pendidikan', k.jenjang_pendidikan || '-'],
+            ['Institusi / Universitas', k.institusi || '-'],
+            ['Jurusan', k.jurusan || '-'],
+            ['Tahun Lulus', k.tahun_lulus ? String(k.tahun_lulus) : '-'],
+            ['Nomor HP / WhatsApp', k.no_hp || '-'],
+            ['Email', k.email || '-'],
+
+            // Sistem Info
+            ['Username Sistem', k.username || '-'],
+            ['Role Sistem', k.role || '-'],
+            ['Jatah Cuti', k.jatah_cuti !== undefined ? `${k.jatah_cuti} Hari` : '-']
         ];
 
-        worksheet.addRows(detailRows);
+        detailRows.forEach((row, index) => {
+            const addedRow = worksheet.addRow(row);
+            addedRow.height = 20;
+            // Alternate row background
+            if (index % 2 === 1) {
+                addedRow.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'F2F4F7' }
+                };
+            }
+            addedRow.eachCell((cell) => {
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'D3D3D3' } },
+                    left: { style: 'thin', color: { argb: 'D3D3D3' } },
+                    bottom: { style: 'thin', color: { argb: 'D3D3D3' } },
+                    right: { style: 'thin', color: { argb: 'D3D3D3' } }
+                };
+                cell.alignment = { vertical: 'middle' };
+            });
+        });
 
         const safeName = (k.nama_lengkap || k.username || 'Karyawan').replace(/[^a-zA-Z0-9]/g, '_');
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=Detail_Karyawan_${safeName}.xlsx`);
+        res.setHeader('Content-Disposition', `attachment; filename=Data_Pribadi_${safeName}.xlsx`);
 
         await workbook.xlsx.write(res);
         res.end();
+    };
+
+    db.query(queryView, [id, id], (err, results) => {
+        if (err) {
+            console.warn('[EXPORT_EXCEL_DETAIL] View query failed, using fallback query:', err.message);
+            db.query(queryFallback, [id, id], (fallbackErr, fallbackResults) => {
+                if (fallbackErr) return res.status(500).json({ message: fallbackErr.message });
+                generateExcel(fallbackResults);
+            });
+        } else {
+            generateExcel(results);
+        }
     });
 };
