@@ -31,6 +31,12 @@ router.put(
   absensiController.editAbsensiHRD
 );
 
+// Rute untuk hapus data absensi lembur oleh HRD
+router.delete(
+  '/hrd/hapus/:id_absensi_lembur',
+  absensiController.hapusAbsensiLemburHRD
+);
+
 // --- KARYAWAN ENDPOINTS ---
 // Rute untuk menu riwayat di dashboard karyawan
 router.get('/riwayat/:id_user', absensiController.getRiwayat);

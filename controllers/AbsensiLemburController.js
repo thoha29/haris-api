@@ -407,3 +407,15 @@ exports.editAbsensiHRD = (req, res) => {
     res.json({ message: 'Data absensi berhasil diperbarui oleh HRD!' });
   });
 };
+
+// --- HAPUS SATU DATA ABSENSI LEMBUR ---
+exports.hapusAbsensiLemburHRD = (req, res) => {
+  const { id_absensi_lembur } = req.params;
+  if (!id_absensi_lembur) {
+    return res.status(400).json({ error: 'ID Data Absensi Lembur diperlukan' });
+  }
+  Absensi.deleteById(id_absensi_lembur, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Data absensi lembur berhasil dihapus!' });
+  });
+};

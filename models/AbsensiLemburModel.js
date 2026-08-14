@@ -211,6 +211,12 @@ const AbsensiLembur = {
     ];
     db.query(sql, values, callback);
   },
+
+  // Delete single absensi lembur
+  deleteById: (id_absensi_lembur, callback) => {
+    const sql = `DELETE FROM absensi_lembur WHERE id_absensi_lembur = ?`;
+    db.query(sql, [id_absensi_lembur], callback);
+  },
 };
 
 module.exports = AbsensiLembur;

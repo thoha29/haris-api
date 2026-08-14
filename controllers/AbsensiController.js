@@ -1,6 +1,7 @@
 const Absensi = require('../models/AbsensiModel');
 const ExcelJS = require('exceljs');
 const db = require('../config/db');
+const { calculateLemburKonversi } = require('../utils/overtimeCalculator');
 
 // Helper untuk menghitung selisih menit antara dua string waktu (HH:mm:ss)
 const getDiffMinutes = (start, end) => {
@@ -435,5 +436,318 @@ exports.prosesSemua = (req, res) => {
     }
 
     res.json(result);
+  });
+};
+
+// --- REPORT LENGKAP HISTORI ABSENSI & LEMBUR (MENU HRD) ---
+exports.getReportLengkapHRD = async (req, res) => {
+  const { id_user } = req.params;
+  const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+  const year = parseInt(req.query.year) || new Date().getFullYear();
+
+  try {
+    // 1. Data Karyawan
+    const [userRows] = await db.query(
+      `SELECT u.id_user, u.username, u.role, dp.nik, dp.nama_lengkap, dp.jabatan, dp.divisi, dp.tipe_kerja, dp.lokasi_kerja, dp.tanggal_masuk
+       FROM users u
+       LEFT JOIN data_pribadi dp ON u.id_user = dp.id_user
+       WHERE u.id_user = ?`,
+      [id_user]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'Karyawan tidak ditemukan' });
+    }
+
+    const karyawan = userRows[0];
+
+    // 2. Data Absensi Reguler
+    const [absensiRows] = await db.query(
+      `SELECT a.*, s.nama_skema, s.jam_masuk AS skema_masuk, s.jam_keluar AS skema_keluar
+       FROM absensi a
+       LEFT JOIN skema_absensi s ON a.id_skema = s.id_skema
+       WHERE a.id_user = ? AND MONTH(a.tanggal) = ? AND YEAR(a.tanggal) = ?
+       ORDER BY a.tanggal ASC, a.jam_masuk ASC`,
+      [id_user, month, year]
+    );
+
+    // 3. Data Absensi Lembur
+    const [lemburRows] = await db.query(
+      `SELECT al.*, s.nama_skema, s.jam_masuk AS skema_masuk, s.jam_keluar AS skema_keluar
+       FROM absensi_lembur al
+       LEFT JOIN skema_absensi s ON al.id_skema = s.id_skema
+       WHERE al.id_user = ? AND MONTH(al.tanggal) = ? AND YEAR(al.tanggal) = ?
+       ORDER BY al.tanggal ASC, al.jam_masuk ASC`,
+      [id_user, month, year]
+    );
+
+    // 4. Data Cuti
+    const [cutiRows] = await db.query(
+      `SELECT * FROM cuti
+       WHERE id_user = ? 
+         AND (
+           (MONTH(tanggal_mulai) = ? AND YEAR(tanggal_mulai) = ?) OR
+           (MONTH(tanggal_selesai) = ? AND YEAR(tanggal_selesai) = ?)
+         )
+         AND (status = 'approved' OR status_hrd = 'approved')
+       ORDER BY tanggal_mulai ASC`,
+      [id_user, month, year, month, year]
+    );
+
+    // 5. Data Jadwal Karyawan
+    const [jadwalRows] = await db.query(
+      `SELECT jk.*, s.nama_skema, s.jam_masuk AS skema_masuk, s.jam_keluar AS skema_keluar
+       FROM jadwal_karyawan jk
+       LEFT JOIN skema_absensi s ON jk.id_skema = s.id_skema
+       WHERE jk.id_user = ? AND MONTH(jk.tanggal) = ? AND YEAR(jk.tanggal) = ?
+       ORDER BY jk.tanggal ASC`,
+      [id_user, month, year]
+    );
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    let totalJamKerja = 0;
+    let totalLemburAktual = 0;
+    let totalLemburKonversi = 0;
+    const totalHkDays = new Set();
+    let shiftSiangCount = 0;
+    let shiftMalamCount = 0;
+    let cutiResmiCount = 0;
+    let sakitIzinAlfaCount = 0;
+
+    const items = [];
+
+    const formatDateKey = (d) => {
+      const dt = new Date(d);
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, '0');
+      const day = String(dt.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    const parseWorkHours = (val) => {
+      if (!val) return 0;
+      if (typeof val === 'number') return val;
+      const num = parseFloat(val);
+      return isNaN(num) ? 0 : num;
+    };
+
+    // Process Absensi Reguler
+    absensiRows.forEach((item) => {
+      const dateKey = formatDateKey(item.tanggal);
+      const statusStr = (item.status || '').toLowerCase();
+      const isAlpha = statusStr === 'alpha';
+      const isSakit = statusStr === 'sakit';
+      const isIzin = statusStr === 'izin';
+
+      const dateObj = new Date(item.tanggal);
+      const isSunday = dateObj.getDay() === 0;
+      const isHoliday = isSunday;
+
+      const durasiKerja = parseWorkHours(item.total_jam_kerja);
+      const lemburAktual = parseFloat(item.lembur) || 0;
+      const lemburKonversi = calculateLemburKonversi(lemburAktual, isHoliday);
+
+      if (!isAlpha && !isSakit && !isIzin) {
+        totalHkDays.add(dateKey);
+        totalJamKerja += durasiKerja;
+        totalLemburAktual += lemburAktual;
+        totalLemburKonversi += lemburKonversi;
+
+        const skemaNama = (item.nama_skema || '').toLowerCase();
+        const jamMsk = item.jam_masuk || item.skema_masuk || '';
+        const hourMasuk = jamMsk ? parseInt(jamMsk.split(':')[0]) : 7;
+
+        if (skemaNama.includes('malam') || hourMasuk >= 18) {
+          shiftMalamCount++;
+        } else {
+          shiftSiangCount++;
+        }
+      } else {
+        sakitIzinAlfaCount++;
+      }
+
+      let jamKerjaStr = '--:--';
+      if (item.jam_masuk) {
+        jamKerjaStr = `${item.jam_masuk.substring(0, 5)} - ${item.jam_keluar ? item.jam_keluar.substring(0, 5) : '??:??'
+          }`;
+      }
+
+      items.push({
+        id: `absensi_${item.id_data_absensi}`,
+        type: 'absensi',
+        raw_id: item.id_data_absensi,
+        tanggal: item.tanggal,
+        status_label: isAlpha
+          ? 'ALPHA'
+          : isSakit
+            ? 'SAKIT'
+            : isIzin
+              ? 'IZIN'
+              : `MASUK (${item.nama_skema || 'Biasa'})`,
+        skema_nama: item.nama_skema || '-',
+        is_holiday: isHoliday,
+        jam_kerja: jamKerjaStr,
+        total_jam_kerja: durasiKerja,
+        lembur_aktual: lemburAktual,
+        lembur_konversi: lemburKonversi,
+        status_approval: item.status_hrd || item.is_approved || 'pending',
+        can_delete: true,
+      });
+    });
+
+    // Process Absensi Lembur
+    lemburRows.forEach((item) => {
+      const dateKey = formatDateKey(item.tanggal);
+      const dateObj = new Date(item.tanggal);
+      const isSunday = dateObj.getDay() === 0;
+      const isHoliday = isSunday;
+
+      const durasiLembur =
+        parseWorkHours(item.total_jam_kerja) || parseFloat(item.lembur) || 0;
+      const lemburKonversi = calculateLemburKonversi(durasiLembur, isHoliday);
+
+      totalHkDays.add(dateKey);
+      totalJamKerja += durasiLembur;
+      totalLemburAktual += durasiLembur;
+      totalLemburKonversi += lemburKonversi;
+
+      let jamKerjaStr = '--:--';
+      if (item.jam_masuk) {
+        jamKerjaStr = `${item.jam_masuk.substring(0, 5)} - ${item.jam_keluar ? item.jam_keluar.substring(0, 5) : '??:??'
+          }`;
+      }
+
+      items.push({
+        id: `lembur_${item.id_absensi_lembur}`,
+        type: 'lembur',
+        raw_id: item.id_absensi_lembur,
+        tanggal: item.tanggal,
+        status_label: `LEMBUR (${item.nama_skema || (isHoliday ? 'Hari Libur' : 'Hari Biasa')
+          })`,
+        skema_nama: item.nama_skema || 'Lembur',
+        is_holiday: isHoliday,
+        jam_kerja: jamKerjaStr,
+        total_jam_kerja: durasiLembur,
+        lembur_aktual: durasiLembur,
+        lembur_konversi: lemburKonversi,
+        status_approval: item.status_hrd || item.is_approved || 'pending',
+        can_delete: true,
+      });
+    });
+
+    // Process Cuti
+    cutiRows.forEach((item) => {
+      const start = new Date(item.tanggal_mulai);
+      const end = new Date(item.tanggal_selesai);
+
+      let curr = new Date(start);
+      while (curr <= end) {
+        if (curr.getMonth() + 1 === month && curr.getFullYear() === year) {
+          const dStr = formatDateKey(curr);
+          const isOfficialLeave = (item.tipe || '')
+            .toLowerCase()
+            .includes('cuti');
+          if (isOfficialLeave) {
+            cutiResmiCount++;
+          } else {
+            sakitIzinAlfaCount++;
+          }
+
+          items.push({
+            id: `cuti_${item.id_cuti}_${dStr}`,
+            type: 'cuti',
+            raw_id: item.id_cuti,
+            tanggal: dStr,
+            status_label: (item.tipe || 'CUTI').toUpperCase(),
+            skema_nama: item.alasan || '-',
+            is_holiday: false,
+            jam_kerja: 'Cuti / Izin',
+            total_jam_kerja: 0,
+            lembur_aktual: 0,
+            lembur_konversi: 0,
+            status_approval: item.status_hrd || 'approved',
+            can_delete: false,
+          });
+        }
+        curr.setDate(curr.getDate() + 1);
+      }
+    });
+
+    // Sort items chronologically
+    items.sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
+
+    // Calculate OFF Murni (Sundays with no work and no cuti)
+    let offMurniCount = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dt = new Date(year, month - 1, d);
+      const dateKey = formatDateKey(dt);
+      const isSunday = dt.getDay() === 0;
+      const hasPresence = totalHkDays.has(dateKey);
+      const hasCuti = items.some(
+        (it) => it.type === 'cuti' && formatDateKey(it.tanggal) === dateKey
+      );
+
+      if (!hasPresence && !hasCuti && isSunday) {
+        offMurniCount++;
+      }
+    }
+
+    res.json({
+      karyawan,
+      periode: {
+        month,
+        year,
+        total_days_in_month: daysInMonth,
+      },
+      summary: {
+        total_jam_kerja: Number(totalJamKerja.toFixed(1)),
+        total_lembur_aktual: Number(totalLemburAktual.toFixed(1)),
+        total_lembur_konversi: Number(totalLemburKonversi.toFixed(1)),
+        total_hk: totalHkDays.size,
+        shift_siang: shiftSiangCount,
+        shift_malam: shiftMalamCount,
+        cuti_resmi: cutiResmiCount,
+        off_murni: offMurniCount,
+        sakit_izin_alfa: sakitIzinAlfaCount,
+      },
+      items,
+    });
+  } catch (err) {
+    console.error('Error report lengkap HRD:', err);
+    res
+      .status(500)
+      .json({ error: 'Gagal mengambil report lengkap: ' + err.message });
+  }
+};
+
+// --- HAPUS SATU DATA ABSENSI ---
+exports.hapusAbsensiHRD = (req, res) => {
+  const { id_data_absensi } = req.params;
+  if (!id_data_absensi) {
+    return res.status(400).json({ error: 'ID Data Absensi diperlukan' });
+  }
+  Absensi.deleteById(id_data_absensi, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Data absensi berhasil dihapus!' });
+  });
+};
+
+// --- HAPUS SEMUA HISTORI (PERIODE TERPILIH) ---
+exports.hapusSemuaHistoriHRD = (req, res) => {
+  const { id_user } = req.params;
+  const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+  const year = parseInt(req.query.year) || new Date().getFullYear();
+
+  if (!id_user) {
+    return res.status(400).json({ error: 'ID User diperlukan' });
+  }
+
+  Absensi.deleteAllByPeriod(id_user, month, year, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({
+      message: `Semua data histori periode ${month}/${year} berhasil dihapus!`,
+      result,
+    });
   });
 };

@@ -22,6 +22,9 @@ router.get('/hrd/list-karyawan', absensiController.getListKaryawan);
 // Rute untuk monitoring riwayat detail per karyawan oleh HRD
 router.get('/hrd/riwayat/:id_user', absensiController.getRiwayat);
 
+// Rute untuk report lengkap gabungan (Absensi, Lembur, Cuti) oleh HRD
+router.get('/hrd/report-lengkap/:id_user', absensiController.getReportLengkapHRD);
+
 // Rute untuk download laporan excel
 router.get('/hrd/download-excel/:id_user', absensiController.exportExcel);
 
@@ -29,6 +32,18 @@ router.get('/hrd/download-excel/:id_user', absensiController.exportExcel);
 router.put(
   '/hrd/edit-absensi/:id_data_absensi',
   absensiController.editAbsensiHRD
+);
+
+// Rute untuk hapus data absensi oleh HRD
+router.delete(
+  '/hrd/hapus/:id_data_absensi',
+  absensiController.hapusAbsensiHRD
+);
+
+// Rute untuk hapus semua histori absensi & lembur per periode oleh HRD
+router.delete(
+  '/hrd/hapus-semua/:id_user',
+  absensiController.hapusSemuaHistoriHRD
 );
 
 // --- KARYAWAN ENDPOINTS ---
