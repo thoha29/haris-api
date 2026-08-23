@@ -13,8 +13,11 @@ const checkAndInsertAlpha = async () => {
       WHERE a.id_data_absensi IS NULL 
         AND jk.tanggal = CURRENT_DATE()
         AND LOWER(s.nama_skema) != 'libur'
+        AND LOWER(s.nama_skema) != 'dinas'
+        AND LOWER(s.nama_skema) != 'off'
         AND s.jam_keluar IS NOT NULL
         AND s.jam_keluar != ''
+        AND s.jam_keluar != '00:00:00'
     `;
 
     const [jadwalResults] = await db.query(queryJadwal);

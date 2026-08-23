@@ -14,6 +14,12 @@ const CareerRoutes = require('./routes/careerRoutes');
 const dokumenPribadiRoutes = require('./routes/DokumenPribadiRoutes');
 const routes = require('./routes');
 const absensiLemburRoutes = require('./routes/absensiLemburRoutes');
+const masterKomponenRoutes = require('./routes/masterKomponenRoutes');
+const transportasiRoutes = require('./routes/transportasiRoutes');
+const pengaturanSkemaRoutes = require('./routes/pengaturanSkemaRoutes');
+const sppdRoutes = require('./routes/sppdRoutes');
+const rabRoutes = require('./routes/rabRoutes');
+const dinasAbsensiRoutes = require('./routes/dinasAbsensiRoutes');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -26,6 +32,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // --- ROUTES ---
 const { initAutoAlphaCron } = require('./cron/autoAlphaCron');
+const { initSppdLifecycleCron } = require('./cron/sppdLifecycleCron');
 
 app.use(routes);
 app.use('/absensi', absensiRoutes);
@@ -40,9 +47,16 @@ app.use('/api/gaji', gajiRoutes);
 app.use('/api/career', CareerRoutes);
 app.use('/api/dokumen', dokumenPribadiRoutes);
 app.use('/absensi-lembur', absensiLemburRoutes);
+app.use('/api/master-komponen', masterKomponenRoutes);
+app.use('/api/transportasi', transportasiRoutes);
+app.use('/api/pengaturan-skema', pengaturanSkemaRoutes);
+app.use('/api/sppd', sppdRoutes);
+app.use('/api/rab', rabRoutes);
+app.use('/api/dinas-absensi', dinasAbsensiRoutes);
 
 // --- CRONS ---
 initAutoAlphaCron();
+initSppdLifecycleCron();
 
 app.listen(port, () => {
   console.log('Server running on port 3000');
