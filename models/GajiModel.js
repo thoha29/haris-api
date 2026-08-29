@@ -79,7 +79,7 @@ class Gaji {
   static getListGaji(callback) {
     const sql = `
             SELECT *
-            FROM v_daftar_gaji_new
+            FROM v_daftar_gaji
             WHERE jmhari >= 1
         `;
     db.query(sql, [], callback);
@@ -88,7 +88,7 @@ class Gaji {
   // untuk kariawan melihat list gajinnya sendiri
   static getGajiKaryawanById(id) {
     return new Promise((resolve, reject) => {
-      const sql = `SELECT * FROM v_daftar_gaji_new WHERE id = ?`;
+      const sql = `SELECT * FROM v_daftar_gaji WHERE id = ?`;
       db.query(sql, [id], (err, result) => {
         if (err) reject(err);
         else resolve(result);

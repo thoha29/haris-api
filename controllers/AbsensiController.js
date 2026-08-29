@@ -583,8 +583,9 @@ exports.getReportLengkapHRD = async (req, res) => {
 
       let jamKerjaStr = '--:--';
       if (item.jam_masuk) {
-        jamKerjaStr = `${item.jam_masuk.substring(0, 5)} - ${item.jam_keluar ? item.jam_keluar.substring(0, 5) : '??:??'
-          }`;
+        jamKerjaStr = `${item.jam_masuk.substring(0, 5)} - ${
+          item.jam_keluar ? item.jam_keluar.substring(0, 5) : '??:??'
+        }`;
       }
 
       items.push({
@@ -595,10 +596,10 @@ exports.getReportLengkapHRD = async (req, res) => {
         status_label: isAlpha
           ? 'ALPHA'
           : isSakit
-            ? 'SAKIT'
-            : isIzin
-              ? 'IZIN'
-              : `MASUK (${item.nama_skema || 'Biasa'})`,
+          ? 'SAKIT'
+          : isIzin
+          ? 'IZIN'
+          : `MASUK (${item.nama_skema || 'Biasa'})`,
         skema_nama: item.nama_skema || '-',
         is_holiday: isHoliday,
         jam_kerja: jamKerjaStr,
@@ -628,8 +629,9 @@ exports.getReportLengkapHRD = async (req, res) => {
 
       let jamKerjaStr = '--:--';
       if (item.jam_masuk) {
-        jamKerjaStr = `${item.jam_masuk.substring(0, 5)} - ${item.jam_keluar ? item.jam_keluar.substring(0, 5) : '??:??'
-          }`;
+        jamKerjaStr = `${item.jam_masuk.substring(0, 5)} - ${
+          item.jam_keluar ? item.jam_keluar.substring(0, 5) : '??:??'
+        }`;
       }
 
       items.push({
@@ -637,8 +639,9 @@ exports.getReportLengkapHRD = async (req, res) => {
         type: 'lembur',
         raw_id: item.id_absensi_lembur,
         tanggal: item.tanggal,
-        status_label: `LEMBUR (${item.nama_skema || (isHoliday ? 'Hari Libur' : 'Hari Biasa')
-          })`,
+        status_label: `LEMBUR (${
+          item.nama_skema || (isHoliday ? 'Hari Libur' : 'Hari Biasa')
+        })`,
         skema_nama: item.nama_skema || 'Lembur',
         is_holiday: isHoliday,
         jam_kerja: jamKerjaStr,

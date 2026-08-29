@@ -261,6 +261,24 @@ const Absensi = {
             [tanggal, tanggal_keluar]
           );
 
+          // =========================
+          // 4. RAB DETAIL
+          // =========================
+          await conn.promise().query(`DELETE FROM rab_detail_proses`);
+
+          await conn.promise().query(
+            `INSERT INTO rab_detail_proses
+             SELECT * FROM rab_detail
+             WHERE tanggal >= ? AND tanggal <= ?`,
+            [tanggal, tanggal_keluar]
+          );
+
+          // =========================
+          // COMMIT
+          // =========================
+          await conn.promise().commit();
+          conn.release();
+
           callback(null, { message: 'Semua proses berhasil' });
         } catch (error) {
           await conn.promise().rollback();
@@ -281,12 +299,15 @@ const Absensi = {
   deleteAllByPeriod: (id_user, month, year, callback) => {
     const sqlAbsensi = `DELETE FROM absensi WHERE id_user = ? AND MONTH(tanggal) = ? AND YEAR(tanggal) = ?`;
     const sqlLembur = `DELETE FROM absensi_lembur WHERE id_user = ? AND MONTH(tanggal) = ? AND YEAR(tanggal) = ?`;
-    
+
     db.query(sqlAbsensi, [id_user, month, year], (err, res1) => {
       if (err) return callback(err);
       db.query(sqlLembur, [id_user, month, year], (err2, res2) => {
         if (err2) return callback(err2);
-        callback(null, { deletedAbsensi: res1.affectedRows, deletedLembur: res2.affectedRows });
+        callback(null, {
+          deletedAbsensi: res1.affectedRows,
+          deletedLembur: res2.affectedRows,
+        });
       });
     });
   },
