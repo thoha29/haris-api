@@ -41,7 +41,7 @@ exports.createSppd = (req, res) => {
   SppdModel.create(sppdData, (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.status(201).json({
-      message: 'Surat Perjalanan Dinas (SPPD) berhasil diterbitkan!',
+      message: 'SPPD berhasil diajukan, menunggu persetujuan atasan.',
       id_sppd: result.insertId,
     });
   });
@@ -55,8 +55,10 @@ exports.getAllSppd = (req, res) => {
   const filter = {};
 
   if (userRole === 'karyawan') {
+    // Karyawan hanya melihat SPPD milik sendiri
     filter.id_user = currentUserId;
   } else if (userRole === 'user') {
+    // Atasan melihat semua SPPD timnya (tidak filter by creator)
     if (id_creator) filter.id_creator = id_creator;
   }
 
@@ -76,6 +78,47 @@ exports.getSppdById = (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!sppd) return res.status(404).json({ message: 'SPPD tidak ditemukan' });
     res.json(sppd);
+  });
+};
+
+// ─── APPROVAL / TOLAK OLEH ATASAN ─────────────────────────────────────────
+exports.approveByAtasan = (req, res) => {
+  const { id_sppd, status, catatan } = req.body;
+  if (!id_sppd || !['approved', 'rejected'].includes(status)) {
+    return res.status(400).json({ error: 'id_sppd dan status (approved/rejected) wajib diisi!' });
+  }
+
+  // Hanya bisa tolak saat masih pending_atasan
+  if (status === 'rejected') {
+    SppdModel.getById(id_sppd, (errGet, sppd) => {
+      if (errGet) return res.status(500).json({ error: errGet.message });
+      if (!sppd) return res.status(404).json({ error: 'SPPD tidak ditemukan!' });
+      if (sppd.status_sppd !== 'pending' && sppd.status_sppd !== 'pending_atasan' && sppd.status_atasan !== 'pending') {
+        return res.status(400).json({ error: 'SPPD hanya dapat ditolak saat masih dalam status pending persetujuan atasan.' });
+      }
+      SppdModel.approveByAtasan(id_sppd, status, catatan, (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'SPPD berhasil ditolak.' });
+      });
+    });
+  } else {
+    SppdModel.approveByAtasan(id_sppd, status, catatan, (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ message: 'SPPD berhasil disetujui. Silakan lanjutkan review RAB.' });
+    });
+  }
+};
+
+// ─── PEMBATALAN SPPD OLEH ATASAN ──────────────────────────────────────────
+exports.cancelByAtasan = (req, res) => {
+  const { id_sppd } = req.body;
+  if (!id_sppd) {
+    return res.status(400).json({ error: 'id_sppd wajib diisi!' });
+  }
+
+  SppdModel.cancelByAtasan(id_sppd, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    res.json({ message: 'SPPD berhasil dibatalkan. Status SPPD dan RAB diubah menjadi cancelled.' });
   });
 };
 

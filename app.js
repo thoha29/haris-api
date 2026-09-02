@@ -49,6 +49,7 @@ app.use('/api/dokumen', dokumenPribadiRoutes);
 app.use('/absensi-lembur', absensiLemburRoutes);
 app.use('/api/master-komponen', masterKomponenRoutes);
 app.use('/api/transportasi', transportasiRoutes);
+app.use('/api/transportasi-perusahaan', transportasiRoutes);
 app.use('/api/pengaturan-skema', pengaturanSkemaRoutes);
 app.use('/api/sppd', sppdRoutes);
 app.use('/api/rab', rabRoutes);

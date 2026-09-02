@@ -21,17 +21,31 @@ exports.submitRab = (req, res) => {
   });
 };
 
+// ─── REVIEW OLEH ATASAN (approve / minta revisi) ─────────────────────────
+exports.reviewByAtasan = (req, res) => {
+  const { id_rab, action, catatan } = req.body;
+  if (!id_rab || !['approve', 'revisi'].includes(action)) {
+    return res.status(400).json({ error: 'id_rab dan action (approve/revisi) wajib diisi!' });
+  }
+
+  if (action === 'revisi' && (!catatan || !catatan.trim())) {
+    return res.status(400).json({ error: 'Catatan revisi wajib diisi!' });
+  }
+
+  RabModel.reviewByAtasan(id_rab, action, catatan, (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(result);
+  });
+};
+
+// ─── PERSETUJUAN FINAL OLEH HRD (approve only, tidak ada reject/edit) ────
 exports.reviewByHrd = (req, res) => {
-  const { id_rab, status, catatan, updatedDetails } = req.body;
-  if (!id_rab || !['approved', 'rejected'].includes(status)) {
-    return res.status(400).json({ error: 'id_rab dan status (approved/rejected) wajib diisi!' });
+  const { id_rab, catatan } = req.body;
+  if (!id_rab) {
+    return res.status(400).json({ error: 'id_rab wajib diisi!' });
   }
 
-  if (status === 'rejected' && (!catatan || !catatan.trim())) {
-    return res.status(400).json({ error: 'Alasan penolakan wajib diisi oleh HRD!' });
-  }
-
-  RabModel.reviewByHrd(id_rab, status, catatan, updatedDetails, (err, result) => {
+  RabModel.reviewByHrd(id_rab, catatan, (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(result);
   });
@@ -39,6 +53,13 @@ exports.reviewByHrd = (req, res) => {
 
 exports.getPendingHrd = (req, res) => {
   RabModel.getAllPendingHrd((err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+};
+
+exports.getPendingAtasan = (req, res) => {
+  RabModel.getAllPendingAtasan((err, results) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(results);
   });

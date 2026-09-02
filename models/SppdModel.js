@@ -25,7 +25,7 @@ const SppdModel = {
         keterangan,
         status_atasan,
         status_hrd
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 'approved', 'pending')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 'pending', 'pending')
     `;
 
     const values = [
@@ -66,7 +66,8 @@ const SppdModel = {
         r.id AS id_rab,
         r.status AS status_rab,
         r.perubahan AS status_perubahan_rab,
-        r.catatan_hrd
+        r.catatan_hrd,
+        r.catatan_atasan
       FROM sppd s
       JOIN users u ON s.id_user = u.id_user
       LEFT JOIN data_pribadi dp ON u.id_user = dp.id_user
@@ -157,6 +158,63 @@ const SppdModel = {
         if (err2) return callback(err2);
         sppd.rab_details = details;
         callback(null, sppd);
+      });
+    });
+  },
+
+  // ─── APPROVAL OLEH ATASAN (USER) ─────────────────────────────────────────
+  approveByAtasan: (id_sppd, status, catatan, callback) => {
+    if (status === 'rejected' && (!catatan || !catatan.trim())) {
+      return callback(new Error('Alasan penolakan wajib diisi!'));
+    }
+
+    if (status === 'approved') {
+      // Setuju SPPD → status menjadi approved_atasan, menunggu review RAB
+      const sql = `UPDATE sppd SET status_sppd = 'approved_atasan', status_atasan = 'approved' WHERE id_sppd = ?`;
+      db.query(sql, [id_sppd], (err, res) => {
+        if (err) return callback(err);
+        callback(null, res);
+      });
+    } else {
+      // Tolak SPPD → SPPD dan RAB keduanya rejected (hanya valid saat pending_atasan)
+      const sql = `UPDATE sppd SET status_sppd = 'rejected', status_atasan = 'rejected', catatan_atasan = ? WHERE id_sppd = ?`;
+      db.query(sql, [catatan || null, id_sppd], (err, res) => {
+        if (err) return callback(err);
+        // Auto-reject RAB
+        db.query(`UPDATE rab SET status = 'rejected', catatan_atasan = ? WHERE id_sppd = ?`, [catatan || null, id_sppd], () => { });
+        callback(null, res);
+      });
+    }
+  },
+
+  // ─── PEMBATALAN OLEH ATASAN (jika SPPD sudah approved_atasan atau lebih) ───
+  cancelByAtasan: (id_sppd, callback) => {
+    db.query(`SELECT * FROM sppd WHERE id_sppd = ?`, [id_sppd], (err, sppdRows) => {
+      if (err) return callback(err);
+      if (sppdRows.length === 0) return callback(new Error('SPPD tidak ditemukan!'));
+
+      const sppd = sppdRows[0];
+      const validStatuses = ['approved_atasan', 'approved', 'active'];
+      if (!validStatuses.includes(sppd.status_sppd)) {
+        return callback(new Error('SPPD hanya dapat dibatalkan jika sudah disetujui atasan.'));
+      }
+
+      db.query(`UPDATE sppd SET status_sppd = 'cancelled', pembatalan = 'approved' WHERE id_sppd = ?`, [id_sppd], (err2, res) => {
+        if (err2) return callback(err2);
+
+        db.query(`UPDATE rab SET status = 'cancelled' WHERE id_sppd = ?`, [id_sppd], () => { });
+
+        if (sppd.transportasi_perusahaan) {
+          db.query(`UPDATE transportasi_perusahaan SET status = 'available' WHERE id = ?`, [sppd.transportasi_perusahaan]);
+        }
+
+        // Hapus jadwal untuk tanggal SPPD (jangan di-assign ke skema manapun)
+        const startStr = typeof sppd.tanggal_mulai === 'string' ? sppd.tanggal_mulai : new Date(sppd.tanggal_mulai).toISOString().split('T')[0];
+        const endStr = typeof sppd.tanggal_selesai === 'string' ? sppd.tanggal_selesai : new Date(sppd.tanggal_selesai).toISOString().split('T')[0];
+
+        db.query(`DELETE FROM jadwal_karyawan WHERE id_user = ? AND DATE(tanggal) BETWEEN ? AND ?`, [sppd.id_user, startStr, endStr], () => {
+          callback(null, res);
+        });
       });
     });
   },
@@ -282,39 +340,12 @@ const SppdModel = {
             db.query(`UPDATE transportasi_perusahaan SET status = 'available' WHERE id = ?`, [sppd.transportasi_perusahaan]);
           }
 
-          db.query(`SELECT id_skema FROM pengaturan_skema WHERE key_setting = 'skema_non_shift'`, (err3, settingRows) => {
-            const idSkemaNonShift = settingRows && settingRows.length > 0 ? settingRows[0].id_skema : 6;
+          // Hapus jadwal untuk tanggal SPPD (jangan di-assign ke skema manapun)
+          const startStr = typeof sppd.tanggal_mulai === 'string' ? sppd.tanggal_mulai : new Date(sppd.tanggal_mulai).toISOString().split('T')[0];
+          const endStr = typeof sppd.tanggal_selesai === 'string' ? sppd.tanggal_selesai : new Date(sppd.tanggal_selesai).toISOString().split('T')[0];
 
-            const dates = [];
-            const startStr = typeof sppd.tanggal_mulai === 'string' ? sppd.tanggal_mulai : new Date(sppd.tanggal_mulai).toISOString().split('T')[0];
-            const endStr = typeof sppd.tanggal_selesai === 'string' ? sppd.tanggal_selesai : new Date(sppd.tanggal_selesai).toISOString().split('T')[0];
-            const startParts = startStr.split('-');
-            const endParts = endStr.split('-');
-            const startDate = new Date(Number(startParts[0]), Number(startParts[1]) - 1, Number(startParts[2]));
-            const endDate = new Date(Number(endParts[0]), Number(endParts[1]) - 1, Number(endParts[2]));
-            const curDate = new Date(startDate);
-
-            while (curDate <= endDate) {
-              const y = curDate.getFullYear();
-              const m = String(curDate.getMonth() + 1).padStart(2, '0');
-              const d = String(curDate.getDate()).padStart(2, '0');
-              dates.push(`${y}-${m}-${d}`);
-              curDate.setDate(curDate.getDate() + 1);
-            }
-
-            if (dates.length > 0) {
-              const values = dates.map((d) => [sppd.id_user, idSkemaNonShift, d]);
-              const sqlJadwal = `
-                INSERT INTO jadwal_karyawan (id_user, id_skema, tanggal) 
-                VALUES ? 
-                ON DUPLICATE KEY UPDATE id_skema = VALUES(id_skema)
-              `;
-              db.query(sqlJadwal, [values], () => {
-                callback(null, res);
-              });
-            } else {
-              callback(null, res);
-            }
+          db.query(`DELETE FROM jadwal_karyawan WHERE id_user = ? AND DATE(tanggal) BETWEEN ? AND ?`, [sppd.id_user, startStr, endStr], () => {
+            callback(null, res);
           });
         });
       });

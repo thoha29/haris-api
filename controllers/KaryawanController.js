@@ -177,7 +177,7 @@ exports.exportExcelAll = (req, res) => {
 exports.exportExcelDetail = (req, res) => {
     const { id } = req.params;
 
-    const queryView = 'SELECT * FROM v_listKaryawan WHERE id_user = ? OR id_data_pribadi = ? LIMIT 1';
+    const queryView = 'SELECT * FROM v_listKaryawan WHERE id_user = ? LIMIT 1';
     const queryFallback = `
         SELECT 
             dp.id_data_pribadi, dp.id_user, dp.nik, dp.nip, dp.nama_lengkap, 
@@ -190,7 +190,7 @@ exports.exportExcelDetail = (req, res) => {
             u.username, u.role, u.jatah_cuti, u.id_skemagaji
         FROM data_pribadi dp
         LEFT JOIN users u ON dp.id_user = u.id_user
-        WHERE dp.id_user = ? OR dp.id_data_pribadi = ?
+        WHERE dp.id_user = ?
         LIMIT 1
     `;
 
@@ -247,7 +247,7 @@ exports.exportExcelDetail = (req, res) => {
             ['Status Perkawinan', k.status_perkawinan || '-'],
             ['Kewarganegaraan', k.kewarganegaraan || '-'],
             ['Alamat Lengkap', k.alamat || '-'],
-            
+
             // Kepegawaian
             ['NIP', k.nip || '-'],
             ['Jabatan', k.jabatan || '-'],
