@@ -19,6 +19,9 @@ router.delete('/hapus/:id_slip', gajiController.deleteSlipGaji);
 // Rute untuk ambil proses list gaji di HRD
 router.get('/list-gaji', gajiController.getListGaji);
 
+// Rute untuk export excel list gaji di HRD
+router.get('/export-excel', gajiController.exportExcelDaftarGaji);
+
 // rute untuk ambil data gaji kariawan by id
 router.get('/gaji-karyawan/:id', gajiController.getGajiKaryawanById);
 
